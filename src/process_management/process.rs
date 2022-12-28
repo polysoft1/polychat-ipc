@@ -34,12 +34,20 @@ impl Drop for Process {
     fn drop(&mut self) {
         let id = self.child.id();
         match self.child.kill() {
-            Err(e) => warn!("Could not kill process {}: {}", id, e),
+            Err(e) => {
+                warn!("Could not kill process {}: {}", id, e);
+                #[cfg(test)]
+                assert!(false, "Error killing process {}: {}", id, e);
+            },
             Ok(()) => debug!("Successfully killed process {}", id)
         };
 
         match self.child.wait() {
-            Err(e) => warn!("Process {} did not exit: {}", id, e),
+            Err(e) => {
+                warn!("Process {} did not exit: {}", id, e);
+                #[cfg(test)]
+                assert!(false, "Error closing process {}: {}", id, e);
+            },
             Ok(code) => debug!("Process {} exited with code: {}", id, code)
         };
     }
