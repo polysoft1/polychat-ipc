@@ -1,29 +1,33 @@
-use std::process::{Child, Command};
+use std::{
+    process::{Child, Command, Stdio},
+    ffi::OsStr
+};
 
 use log::{warn, debug};
 
 #[cfg(test)]
 use test_log::test;
 
-struct Process {
+#[derive(Debug)]
+pub struct Process {
     child: Child,
 }
 
 impl Process {
-    pub fn new(path: &str) -> Result<Process, String> {
-        let child = Command::new(&path).spawn();
+    pub fn new<T: AsRef<OsStr> + std::fmt::Debug>(path: T) -> Result<Process, String> {
+        let child = Command::new(&path).stdout(Stdio::null()).spawn();
 
         match child {
             Ok(child) => {
-                debug!("Successfully started process {} with PID {}", path, child.id());
+                debug!("Successfully started process {:?} with PID {}", path, child.id());
                 Ok(Process {
                     child: child
                 })
             },
             Err(e) => {
-                debug!("Could not load process from path {}: {}", &path, e);
+                debug!("Could not load process from path {:?}: {}", &path, e);
                 Err(
-                    format!("Could not load process from path {}: {}", path, e)
+                    format!("Could not load process from path {:?}: {}", path, e)
                 )
             }
         }
