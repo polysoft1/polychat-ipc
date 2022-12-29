@@ -55,6 +55,8 @@ pub struct AuthAccountResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_log::test;
+    use log::debug;
 
     // Serialization + Deserialization tests
     // For all of the types, these tests serialize and deserialize them to
@@ -72,7 +74,7 @@ mod tests {
         };
         let serialized = serde_json::to_string(&original).unwrap();
 
-        println!("serialized AuthAccountInstruction = {}", serialized);
+        debug!("serialized AuthAccountInstruction = {}", serialized);
 
         // Convert the JSON string back to a Point.
         let deserialized: AuthAccountInstruction = serde_json::from_str(&serialized).unwrap();
@@ -88,7 +90,7 @@ mod tests {
         };
         let serialized = serde_json::to_string(&original).unwrap();
 
-        println!("serialized AuthAccountResponse = {}", serialized);
+        debug!("serialized AuthAccountResponse = {}", serialized);
 
         // Convert the JSON string back to a Point.
         let deserialized: AuthAccountResponse = serde_json::from_str(&serialized).unwrap();

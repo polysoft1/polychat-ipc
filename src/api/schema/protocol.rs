@@ -34,6 +34,8 @@ pub struct InitDataInstruction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_log::test;
+    use log::debug;
 
     // Serialization + Deserialization tests
     // For all of the types, these tests serialize and deserialize them to
@@ -66,7 +68,7 @@ mod tests {
         };
         let serialized = serde_json::to_string(&original).unwrap();
 
-        println!("serialized InitDataInstruction = {}", serialized);
+        debug!("serialized InitDataInstruction = {}", serialized);
 
         // Convert the JSON string back to a Point.
         let deserialized: InitDataInstruction = serde_json::from_str(&serialized).unwrap();
