@@ -81,6 +81,7 @@ fn expected_file(entry: &DirEntry) -> bool {
 }
 
 #[test]
+#[ignore]
 fn test_loading_from_dir() {
     let proc_man = ProcessManager::new("/home/keith/.polychat/plugins");
 
