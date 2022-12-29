@@ -1,4 +1,4 @@
-use crate::api::*;
+use super::schema::api::*;
 
 /// A trait to be implemented by the core for instructions sent from a plugin
 /// Also can be implemented by the plugin SDK, which can then be translated
