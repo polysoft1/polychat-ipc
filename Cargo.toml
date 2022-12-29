@@ -8,7 +8,12 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0.152", features=["derive"] }
 serde_json = { version = "1.0.91", features=["raw_value"] }
-env_logger = "0.10.0"
 log = "0.4.17"
-test-log = "0.2.11"
 walkdir = "2.3.2"
+tokio = { version = "1.23.0", features=["net", "time", "io-util", "rt", "macros", "rt-multi-thread", "sync"]}
+interprocess = {version="1.2.1", features=["tokio_support"]}
+futures = "0.3.25"
+
+[dev-dependencies]
+test-log = "0.2.11"
+env_logger = "0.10.0"
