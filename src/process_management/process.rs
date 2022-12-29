@@ -37,6 +37,9 @@ impl Process {
 impl Drop for Process {
     fn drop(&mut self) {
         let id = self.child.id();
+        // TODO: Handle the case where the process terminates early, either
+        // by checking if it's still running, or gracefully failing on kill.
+        // On Windows, if it terminates early, it's an access denied error.
         match self.child.kill() {
             Err(e) => {
                 warn!("Could not kill process {}: {}", id, e);
