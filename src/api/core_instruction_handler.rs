@@ -1,4 +1,8 @@
-use super::schema::api::*;
+use super::schema::{
+    auth::AuthAccountResponse,
+    protocol::InitDataInstruction,
+    keepalive::KeepaliveInstruction,
+};
 
 /// A trait to be implemented by the core for instructions sent from a plugin
 /// Also can be implemented by the plugin SDK, which can then be translated
