@@ -22,10 +22,3 @@ struct CoreInstruction {
     pub instruction_type: CoreInstructionType,
     pub payload: Box<RawValue>, // or &'a RawValue
 }
-
-
-#[cfg(test)]
-mod tests {
-    
-
-}
