@@ -1,5 +1,8 @@
-use log::{debug, error, warn};
+use crate::api::schema::{
+    instructions::{CoreInstruction, CoreInstructionType}
+};
 
+use log::{debug, error, warn};
 use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream}
@@ -106,5 +109,29 @@ impl SocketHandler {
                 return None;
             }
         }
+    }
+
+    async fn handle_message(&self, data: String) -> Result<CoreInstruction, String> {
+        let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
+            Ok(data) => data,
+            Err(e) => {
+                debug!("Unrecognized instruction received");
+                return Err(e.to_string());
+            }
+        };
+        
+        match data.instruction_type {
+            CoreInstructionType::Init => {
+                debug!("Init Instruction received");
+            },
+            CoreInstructionType::AuthAccountResponse => {
+                debug!("Account Auth Instruction received");
+            },
+            CoreInstructionType::KeepaliveResponse => {
+                debug!("Keep Alive Instruction received");
+            }
+        };
+
+        Ok(data)
     }
 }

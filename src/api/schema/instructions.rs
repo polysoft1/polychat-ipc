@@ -18,7 +18,7 @@ pub enum PluginInstructionType {
 
 /// An instruction that was sent from plugin to core
 #[derive(Serialize, Deserialize, Debug)]
-struct CoreInstruction {
+pub struct CoreInstruction {
     pub instruction_type: CoreInstructionType,
     pub payload: Box<RawValue>, // or &'a RawValue
 }
