@@ -22,3 +22,10 @@ pub struct CoreInstruction {
     pub instruction_type: CoreInstructionType,
     pub payload: Box<RawValue>, // or &'a RawValue
 }
+
+/// An instruction that was sent from plugin to core
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PluginInstruction {
+    pub instruction_type: PluginInstructionType,
+    pub payload: Box<RawValue>, // or &'a RawValue
+}

@@ -32,7 +32,7 @@ impl SocketHandler {
      * - Windows/Linux - Creates a namespaced socket (@[`socket_name`](#socket_name).sock)
      * - BSD/Mac/\*NIX - Creates a filepath socket at /tmp/[`socket_name`](#socket_name).sock
      **/
-    pub fn new(socket_name: &str) -> Result<SocketHandler, String> {
+    pub fn new(socket_name: &str) -> Result<Self, String> {
         let name = {
             use NameTypeSupport::*;
             match NameTypeSupport::query() {
