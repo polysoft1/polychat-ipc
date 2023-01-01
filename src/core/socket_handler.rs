@@ -36,8 +36,8 @@ impl SocketHandler {
         let name = {
             use NameTypeSupport::*;
             match NameTypeSupport::query() {
-                OnlyPaths => format!("/tmp/{}.sock", socket_name),
-                OnlyNamespaced | Both => format!("@{}.sock", socket_name),
+                OnlyPaths | Both => format!("/tmp/{}.sock", socket_name),
+                OnlyNamespaced => format!("@{}.sock", socket_name),
             }
         };
 
@@ -76,7 +76,8 @@ impl SocketHandler {
                 },
                 Some(s) => s
             };
-
+            
+            let _ = self.handle_message(data).await;
         }
     }
 
