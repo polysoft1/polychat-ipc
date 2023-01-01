@@ -112,6 +112,21 @@ impl SocketHandler {
         }
     }
 
+    /**
+     * Handles a message, serializing it to a [CoreInstruction] and then returning it
+     * 
+     * TEMPORARY FUNCTIONALITY: Log what kind of instruction was received
+     * (this should be delegated off to whatever function handles the particular [CoreInstruction])
+     * 
+     * # Arguments
+     * ## data
+     * A [String] containing JSON data serializable to a [CoreInstruction]
+     * 
+     * # Returns
+     * A [CoreInstruction] on success
+     * 
+     * A String containing error information on failure
+     */
     async fn handle_message(&self, data: String) -> Result<CoreInstruction, String> {
         let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
             Ok(data) => data,
