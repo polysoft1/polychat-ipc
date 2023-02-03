@@ -31,6 +31,9 @@ impl SocketCommunicator {
             writer
         })
     }
+    pub async fn close(&mut self) {
+        self.writer.close().await;
+    }
     pub async fn send_core_message(&mut self, msg: &CoreInstruction) -> Result<(), String>{
         let data = match serde_json::to_string(msg) {
             Ok(s) => s,

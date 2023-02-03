@@ -19,7 +19,7 @@ mod test {
     #[case(CoreInstructionType::KeepaliveResponse)]
     #[case(CoreInstructionType::AuthAccountResponse)]
     #[test_log::test(tokio::test)]
-    async fn int_test_core_instruction_sending(#[case] ins_type: CoreInstructionType){
+    async fn integration_test_core_instruction_sending(#[case] ins_type: CoreInstructionType){
         let socket_name = format!("int_test_{}", ins_type);
         debug!("Creating SocketHandler {}", socket_name);
         let handler = create_handler(socket_name.clone());
@@ -36,8 +36,10 @@ mod test {
 
         debug!("Receiving data from socket");
         let recv_res = handler.get_data_from_new_conn();
-        let (send_res, recv_res) = join!(send_res, recv_res);
-        
+        send_res.await;
+        comm.close().await;
+
+        let recv_res = recv_res.await;
         assert!(recv_res.is_ok(), "Error receiving CoreInstruction via Core");
         let des_ins = handler.handle_message(recv_res.unwrap()).await;
         assert!(des_ins.is_ok(), "Error Decoding CoreInstruction");
