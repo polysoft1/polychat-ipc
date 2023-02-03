@@ -5,20 +5,21 @@ use interprocess::local_socket::{
     },
     NameTypeSupport
 };
+use log::{trace, debug};
 
 use crate::api::schema::instructions::{
     CoreInstruction, PluginInstruction
 };
 
-
+#[derive(Debug)]
 pub struct SocketCommunicator {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf
 }
 
 impl SocketCommunicator {
-    pub async fn new() -> Result<SocketCommunicator, String> {
-        let stream = match LocalSocketStream::connect(get_socket_name()).await {
+    pub async fn new(name: String) -> Result<SocketCommunicator, String> {
+        let stream = match LocalSocketStream::connect(get_socket_name(name)).await {
             Ok(s) => s,
             Err(e) => {
                 return Err(e.to_string());
@@ -30,15 +31,19 @@ impl SocketCommunicator {
             writer
         })
     }
-    pub async fn send_core_message(&mut self, msg: CoreInstruction) -> Result<(), String>{
-        let data = match serde_json::to_string(&msg) {
+    pub async fn send_core_message(&mut self, msg: &CoreInstruction) -> Result<(), String>{
+        let data = match serde_json::to_string(msg) {
             Ok(s) => s,
             Err(e) => {
                 return Err(e.to_string());
             }
         };
+        debug!("Sending data to socket");
         match self.writer.write_all(data.as_bytes()).await {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!("Finished sending data to socket");
+                Ok(())
+            },
             Err(e) => Err(e.to_string())
         }
     }
@@ -60,11 +65,11 @@ impl SocketCommunicator {
     }
 }
 
-fn get_socket_name() -> &'static str {
+fn get_socket_name(name: String) -> String {
     use NameTypeSupport::*;
 
     match NameTypeSupport::query() {
-        OnlyPaths | Both => "/tmp/polychat.sock",
-        OnlyNamespaced => "@polychat.sock"
+        OnlyPaths | Both => format!("/tmp/{}.sock", name),
+        OnlyNamespaced => format!("@{}.sock", name)
     }
 }

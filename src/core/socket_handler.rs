@@ -79,6 +79,23 @@ impl SocketHandler {
         }
     }
 
+    pub async fn get_data_from_new_conn(&self) -> Result<String, String> {
+        let conn = match self.listener.accept().await {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("Could not accept a socket connection: {}", e);
+                return Err(e.to_string());
+            }
+        };
+
+        match self.recv_data(conn).await {
+            None => {
+                Ok("".to_string())
+            },
+            Some(s) => Ok(s)
+        }
+    }
+
     /** Receives data from a new connection, returning any data it might have sent
      * 
      * # Arguments
@@ -125,7 +142,7 @@ impl SocketHandler {
      * 
      * A String containing error information on failure
      */
-    async fn handle_message(&self, data: String) -> Result<CoreInstruction, String> {
+    pub async fn handle_message(&self, data: String) -> Result<CoreInstruction, String> {
         trace!("Serializing {}", data);
         let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
             Ok(data) => data,
