@@ -5,7 +5,7 @@ use interprocess::local_socket::{
     },
     NameTypeSupport
 };
-use log::{trace, debug};
+use log::debug;
 
 use crate::api::schema::instructions::{
     CoreInstruction, PluginInstruction
@@ -31,9 +31,7 @@ impl SocketCommunicator {
             writer
         })
     }
-    pub async fn close(&mut self) {
-        self.writer.close().await;
-    }
+
     pub async fn send_core_message(&mut self, msg: &CoreInstruction) -> Result<(), String>{
         let data = match serde_json::to_string(msg) {
             Ok(s) => s,
@@ -42,9 +40,19 @@ impl SocketCommunicator {
             }
         };
         debug!("Sending data to socket");
-        match self.writer.write_all(data.as_bytes()).await {
+        let payload = format!("{}\n", data);
+        match self.writer.write_all(payload.as_bytes()).await {
             Ok(_) => {
                 debug!("Finished sending data to socket");
+                debug!("Flushing writer");
+                match self.writer.flush().await {
+                    Err(e) => {
+                        debug!("Could not flush buffer, {}", e.to_string());
+                    }
+                    Ok(_) => {
+                        debug!("Successfully flushed buffer");
+                    }
+                };
                 Ok(())
             },
             Err(e) => Err(e.to_string())

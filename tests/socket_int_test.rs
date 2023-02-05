@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod test {
-    use futures::join;
     use rstest::*;
     use serde_json::value::RawValue;
     use log::debug;
@@ -37,7 +36,6 @@ mod test {
         debug!("Receiving data from socket");
         let recv_res = handler.get_data_from_new_conn();
         send_res.await;
-        comm.close().await;
 
         let recv_res = recv_res.await;
         assert!(recv_res.is_ok(), "Error receiving CoreInstruction via Core");
