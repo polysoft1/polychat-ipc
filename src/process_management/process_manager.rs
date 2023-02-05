@@ -142,7 +142,7 @@ fn expected_file(entry: &DirEntry) -> bool {
 #[test]
 #[ignore]
 fn test_loading_from_dir() {
-    let proc_man = ProcessManager::new("/home/keith/.polychat/plugins");
+    let proc_man = ProcessManager::new("C:\\Users\\Admin\\Documents\\polychat-plugins");
 
     assert!(proc_man.is_ok(), "Could not load processes from folder: {}", proc_man.unwrap_err());
 }

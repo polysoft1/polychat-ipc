@@ -199,6 +199,7 @@ impl SocketHandler {
 
 impl Drop for SocketHandler {
     fn drop(&mut self) {
+        debug!("Attempting to close Socket {}", self.socket_name);
         use NameTypeSupport::*;
         match NameTypeSupport::query() {
             OnlyPaths | Both => {

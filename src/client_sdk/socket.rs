@@ -65,13 +65,17 @@ impl SocketCommunicator {
         match self.reader.read_to_string(&mut buffer).await {
             Ok(_) => {},
             Err(e) => {
+                debug!("Failed to read data from buffer! Received data {}, e: {}", buffer, e);
                 return Err(e.to_string());
             }
         }
         
         match serde_json::from_str::<PluginInstruction>(&buffer) {
             Ok(ins) => Ok(ins),
-            Err(e) => Err(e.to_string())
+            Err(e) => {
+                debug!("Failed to deserialize PluginInstruction! Received data {}", buffer);
+                Err(e.to_string())
+            }
         }
     }
 }
