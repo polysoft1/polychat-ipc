@@ -8,8 +8,12 @@ mod test {
         core::socket_handler::SocketHandler,
         client_sdk::socket::SocketCommunicator,
         api::schema::{
-            instructions::{CoreInstruction, CoreInstructionType},
-            protocol::*
+            instructions::{
+                CoreInstruction,
+                CoreInstructionType,
+                PluginInstruction,
+                PluginInstructionType
+            }
         }
     };
 
@@ -20,20 +24,16 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn integration_test_core_instruction_sending(#[case] ins_type: CoreInstructionType){
         let socket_name = format!("int_test_{}", ins_type);
-        debug!("Creating SocketHandler {}", socket_name);
         let handler = create_handler(socket_name.clone());
 
-        debug!("Creating SocketCommunicator at {}", socket_name);
         let mut comm = create_communicator(socket_name).await;
         let instruct = CoreInstruction{
             payload: create_core_payload(),
             instruction_type: ins_type
         };
 
-        debug!("Sending data to socket");
         let send_res = comm.send_core_message(&instruct);
 
-        debug!("Receiving data from socket");
         let recv_res = handler.get_data_from_new_conn();
         send_res.await;
 
@@ -43,6 +43,29 @@ mod test {
         assert!(des_ins.is_ok(), "Error Decoding CoreInstruction");
 
         assert_eq!(des_ins.unwrap(), instruct);
+    }
+
+    #[rstest]
+    #[case(PluginInstructionType::Keepalive)]
+    #[case(PluginInstructionType::AuthAccount)]
+    #[test_log::test(tokio::test)]
+    async fn integration_test_plugin_instruction_client(#[case] ins_type: PluginInstructionType) {
+        let socket_name = format!("client_ins_{}", ins_type);
+        let server = create_handler(socket_name.clone());
+        let mut client = create_communicator(socket_name).await;
+
+        let instruct = PluginInstruction{
+            payload: create_core_payload(),
+            instruction_type: ins_type
+        };
+        let conn = server.get_connection().await;
+        assert!(conn.is_ok(), "Could not accept a connection!");
+        let send = server.send_plugin_instruction(conn.unwrap(), &instruct).await;
+        assert!(send.is_ok(), "Issue sending plugin instruction!");
+
+        let recv = client.recv_instruction().await;
+        assert!(recv.is_ok(), "Issue receving plugin instruction!");
+        assert_eq!(instruct, recv.unwrap());
     }
 
     fn create_handler(name: String) -> SocketHandler {

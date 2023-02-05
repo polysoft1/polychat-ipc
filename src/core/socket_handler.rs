@@ -1,5 +1,5 @@
 use crate::api::schema::{
-    instructions::{CoreInstruction, CoreInstructionType}
+    instructions::{CoreInstruction, CoreInstructionType, PluginInstruction}
 };
 
 use log::{debug, error, warn, trace};
@@ -8,7 +8,7 @@ use interprocess::local_socket::{
     tokio::{LocalSocketListener, LocalSocketStream}
 };
 use futures::{
-    io::BufReader, AsyncBufReadExt
+    io::BufReader, AsyncBufReadExt, AsyncWriteExt
 };
 use std::{path::Path, fs};
 
@@ -76,6 +76,35 @@ impl SocketHandler {
             };
             
             let _ = self.handle_message(data).await;
+        }
+    }
+
+    pub async fn get_connection(&self) -> Result<LocalSocketStream, String> {
+        match self.listener.accept().await {
+            Ok(c) => Ok(c),
+            Err(e) => {
+                warn!("Could not accept a socket connection: {}", e);
+                return Err(e.to_string());
+            }
+        }
+    }
+
+    pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<(), String> {
+        let (_, mut writer) = conn.into_split();
+        let payload = match serde_json::to_string(&inst) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("Could not convert instruction to a String!");
+                return Err(e.to_string());
+            }
+        };
+        let buffer = format!("{}\n", payload);
+        match writer.write_all(buffer.as_bytes()).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                warn!("Could not write all data to buffer");
+                Err(e.to_string())
+            }
         }
     }
 
