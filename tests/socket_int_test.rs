@@ -32,9 +32,9 @@ mod test {
             instruction_type: ins_type
         };
 
-        let send_res = comm.send_core_message(&instruct);
+        let send_res = comm.send_core_instruction(&instruct);
 
-        let recv_res = handler.get_data_from_new_conn();
+        let recv_res = handler.get_core_instruction_data();
         send_res.await;
 
         let recv_res = recv_res.await;
@@ -63,7 +63,7 @@ mod test {
         let send = server.send_plugin_instruction(conn.unwrap(), &instruct).await;
         assert!(send.is_ok(), "Issue sending plugin instruction!");
 
-        let recv = client.recv_instruction().await;
+        let recv = client.recv_plugin_instruction().await;
         assert!(recv.is_ok(), "Issue receving plugin instruction!");
         assert_eq!(instruct, recv.unwrap());
     }

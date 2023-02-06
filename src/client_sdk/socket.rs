@@ -34,7 +34,7 @@ impl SocketCommunicator {
         })
     }
 
-    pub async fn send_core_message(&mut self, msg: &CoreInstruction) -> Result<(), String>{
+    pub async fn send_core_instruction(&mut self, msg: &CoreInstruction) -> Result<(), String>{
         let data = match serde_json::to_string(msg) {
             Ok(s) => s,
             Err(e) => {
@@ -61,7 +61,7 @@ impl SocketCommunicator {
         }
     }
 
-    pub async fn recv_instruction(&mut self) -> Result<PluginInstruction, String> {
+    pub async fn recv_plugin_instruction(&mut self) -> Result<PluginInstruction, String> {
         let mut reader = BufReader::new(&mut self.reader);
         let mut buffer = String::with_capacity(128);
 

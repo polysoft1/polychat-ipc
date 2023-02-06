@@ -108,7 +108,7 @@ impl SocketHandler {
         }
     }
 
-    pub async fn get_data_from_new_conn(&self) -> Result<String, String> {
+    pub async fn get_core_instruction_data(&self) -> Result<String, String> {
         let conn = match self.listener.accept().await {
             Ok(c) => c,
             Err(e) => {
