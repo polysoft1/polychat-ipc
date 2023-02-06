@@ -1,4 +1,6 @@
-use futures::{AsyncWriteExt, AsyncReadExt};
+use futures::{
+    io::BufReader, AsyncBufReadExt, AsyncWriteExt, AsyncReadExt, AsyncBufRead
+};
 use interprocess::local_socket::{
     tokio::{
         LocalSocketStream, OwnedReadHalf, OwnedWriteHalf,
@@ -60,9 +62,10 @@ impl SocketCommunicator {
     }
 
     pub async fn recv_instruction(&mut self) -> Result<PluginInstruction, String> {
+        let mut reader = BufReader::new(&mut self.reader);
         let mut buffer = String::with_capacity(128);
 
-        match self.reader.read_to_string(&mut buffer).await {
+        match reader.read_line(&mut buffer).await {
             Ok(_) => {},
             Err(e) => {
                 debug!("Failed to read data from buffer! Received data {}, e: {}", buffer, e);
