@@ -12,6 +12,7 @@ use log::debug;
 use crate::api::schema::instructions::{
     CoreInstruction, PluginInstruction
 };
+use crate::utils::socket::*;
 
 #[derive(Debug)]
 pub struct SocketCommunicator {
@@ -35,30 +36,8 @@ impl SocketCommunicator {
     }
 
     pub async fn send_core_instruction(&mut self, msg: &CoreInstruction) -> Result<(), String>{
-        let data = match serde_json::to_string(msg) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(e.to_string());
-            }
-        };
-        debug!("Sending data to socket");
-        let payload = format!("{}\n", data);
-        match self.writer.write_all(payload.as_bytes()).await {
-            Ok(_) => {
-                debug!("Finished sending data to socket");
-                debug!("Flushing writer");
-                match self.writer.flush().await {
-                    Err(e) => {
-                        debug!("Could not flush buffer, {}", e.to_string());
-                    }
-                    Ok(_) => {
-                        debug!("Successfully flushed buffer");
-                    }
-                };
-                Ok(())
-            },
-            Err(e) => Err(e.to_string())
-        }
+        let payload = convert_struct_to_str(msg)?;
+        Ok(send_str_over_ipc(&payload, &mut self.writer).await?)
     }
 
     pub async fn recv_plugin_instruction(&mut self) -> Result<PluginInstruction, String> {

@@ -67,3 +67,9 @@ impl PartialEq for CoreInstruction {
         ins_equal && payloads_equal
     }
 }
+
+impl Display for CoreInstruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Type: {}, Payload: {}", self.instruction_type, self.payload.get())
+    }
+}
