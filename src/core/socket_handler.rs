@@ -105,52 +105,9 @@ impl SocketHandler {
         return send_str_over_ipc(&payload, &mut writer).await;
     }
 
-    pub async fn get_core_instruction_data(&self) -> Result<String, String> {
-        let conn = match self.listener.accept().await {
-            Ok(c) => c,
-            Err(e) => {
-                warn!("Could not accept a socket connection: {}", e);
-                return Err(e.to_string());
-            }
-        };
-
-        match self.recv_data(conn).await {
-            None => {
-                Ok("".to_string())
-            },
-            Some(s) => Ok(s)
-        }
-    }
-
-    /** Receives data from a new connection, returning any data it might have sent
-     * 
-     * # Arguments
-     * ## `conn`
-     * A LocalSocketStream connection to a remote process
-     * 
-     * # Returns
-     * `None` if no data was received (or the read errored out)
-     * 
-     * A `String` containing the data sent if the connection suceeded.
-     */
-    async fn recv_data(&self, conn: LocalSocketStream) -> Option<String> {
-        let (reader, _) = conn.into_split();
-        let mut reader = BufReader::new(reader);
-        let mut data = String::with_capacity(128);
-
-        let read_res = reader.read_line(&mut data).await;
-        
-        match read_res {
-            Ok(size) => {
-                debug!("Received {} bytes from a client", size);
-                debug!("Message contents: {}", data);
-                Some(data)
-            },
-            Err(e) => {
-                warn!("Could not read from client: {}", e);
-                return None;
-            }
-        }
+    pub async fn get_core_instruction_data(&self, conn: LocalSocketStream) -> Result<String, String> {
+        let (mut reader, _) = conn.into_split();
+        return receive_line(&mut reader).await;
     }
 
     /**

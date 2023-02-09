@@ -34,7 +34,9 @@ mod test {
 
         let send_res = comm.send_core_instruction(&instruct);
 
-        let recv_res = handler.get_core_instruction_data();
+        let conn = handler.get_connection().await;
+        assert!(conn.is_ok(), "Could not get connection from socket: {}", conn.unwrap_err());
+        let recv_res = handler.get_core_instruction_data(conn.unwrap());
         send_res.await;
 
         let recv_res = recv_res.await;
