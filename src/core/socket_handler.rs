@@ -1,5 +1,8 @@
-use crate::api::schema::{
-    instructions::{CoreInstruction, CoreInstructionType, PluginInstruction}
+use crate::{
+    api::schema::{
+        instructions::{CoreInstruction, CoreInstructionType, PluginInstruction},
+    },
+    utils::socket::*
 };
 
 use log::{debug, error, warn, trace};
@@ -60,19 +63,19 @@ impl SocketHandler {
      */
     pub async fn run(&self) {      
         loop {
-            let conn = match self.listener.accept().await {
+            let conn = match self.get_connection().await {
                 Ok(c) => c,
-                Err(e) => {
-                    warn!("Could not accept a socket connection: {}", e);
+                Err(_) => {
                     continue;
                 }
             };
 
-            let data = match self.recv_data(conn).await {
-                None => {
+            let (mut reader, _) = conn.into_split();
+            let data = match receive_line(&mut reader).await {
+                Err(_) => {
                     continue;
                 },
-                Some(s) => s
+                Ok(s) => s
             };
             
             let _ = self.handle_message(data).await;
@@ -91,21 +94,15 @@ impl SocketHandler {
 
     pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<(), String> {
         let (_, mut writer) = conn.into_split();
-        let payload = match serde_json::to_string(&inst) {
+        let payload = match convert_struct_to_str(inst) {
             Ok(s) => s,
             Err(e) => {
                 warn!("Could not convert instruction to a String!");
                 return Err(e.to_string());
             }
         };
-        let buffer = format!("{}\n", payload);
-        match writer.write_all(buffer.as_bytes()).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                warn!("Could not write all data to buffer");
-                Err(e.to_string())
-            }
-        }
+        
+        return send_str_over_ipc(&payload, &mut writer).await;
     }
 
     pub async fn get_core_instruction_data(&self) -> Result<String, String> {
@@ -218,14 +215,6 @@ impl Drop for SocketHandler {
             },
             OnlyNamespaced => {},
         }
-    }
-}
-
-fn get_socket_name<S>(name: S) -> String where S: Into<String> + std::fmt::Display {
-    use NameTypeSupport::*;
-    match NameTypeSupport::query() {
-        OnlyPaths | Both => format!("/tmp/{}.sock", name),
-        OnlyNamespaced => format!("@{}.sock", name),
     }
 }
 
