@@ -5,9 +5,6 @@ use std::{
 
 use log::{warn, debug};
 
-#[cfg(test)]
-use test_log::test;
-
 #[derive(Debug)]
 pub struct Process {
     child: Child,
@@ -64,6 +61,7 @@ impl Drop for Process {
 mod test {
     use crate::process_management::process::Process;
     use tokio_test::assert_ok;
+    use test_log::test;
 
     #[cfg(target_os = "windows")]
     const TEST_PROGRAM: &str = "calc.exe";
