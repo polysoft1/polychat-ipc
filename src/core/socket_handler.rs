@@ -10,9 +10,6 @@ use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream}
 };
-use futures::{
-    io::BufReader, AsyncBufReadExt, AsyncWriteExt
-};
 use std::{path::Path, fs};
 
 #[derive(Debug)]
@@ -179,33 +176,26 @@ impl Drop for SocketHandler {
 mod test{
     use crate::core::SocketHandler;
     use rstest::*;
+    use tokio_test::{assert_ok, assert_err};
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn create_socket_succeeds() {
-        let socket = SocketHandler::new("polychat");
-
-        assert!(socket.is_ok(), "Socket Handler was unable to init: {}", socket.unwrap_err());
+        assert_ok!(SocketHandler::new("polychat"));
     }
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn socket_cleans_up_after_itself() {
-        let socket = SocketHandler::new("polychat");
-
-        assert!(socket.is_ok(), "Second SocketHandler could not be initialized: {}", socket.unwrap_err());
+        assert_ok!(SocketHandler::new("polychat"));
     }
 
     #[tokio::test]
     async fn socket_json_handles_malformed_instruction() {
-        let socket = SocketHandler::new("malformed_instruction");
+        let socket = assert_ok!(SocketHandler::new("malformed_instruction"));
         let garbage = "{\"instruction_type\": \"Silliness\",\"payload\": {}}";
 
-        assert!(socket.is_ok(), "Could not init SocketHandler");
-        let socket = socket.unwrap();
-
-        let ins = socket.handle_message(String::from(garbage)).await;
-        assert!(ins.is_err(), "SocketHandler did not err on malformed instruction");
+        assert_err!(socket.handle_message(String::from(garbage)).await);
     }
 
     #[rstest]
@@ -214,13 +204,10 @@ mod test{
     #[case("AuthAccountResponse")]
     #[tokio::test]
     async fn socket_json_handles_valid_core_instruction_types(#[case] ins_type: String) {
-        let socket = SocketHandler::new(format!("{}_instruction", ins_type));
-        assert!(socket.is_ok(), "Could not init SocketHandler");
-        let socket = socket.unwrap();
+        let socket = assert_ok!(SocketHandler::new(format!("{}_instruction", ins_type)));
         
         let inst = format!("{{\"instruction_type\": \"{}\", \"payload\": {{}} }}", ins_type);
-        let result = socket.handle_message(String::from(inst)).await;
-        assert!(result.is_ok(), "SocketHandler could not handle type: {}", ins_type);
+        assert_ok!(socket.handle_message(String::from(inst)).await);
     }
 
 }
