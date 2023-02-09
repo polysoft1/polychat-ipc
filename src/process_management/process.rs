@@ -61,24 +61,24 @@ impl Drop for Process {
 }
 
 #[cfg(test)]
-#[cfg(target_os = "windows")]
-const TEST_PROGRAM: &str = "calc.exe";
-#[cfg(test)]
-#[cfg(not(target_os = "windows"))]
-const TEST_PROGRAM: &str = "yes";
+mod test {
+    use crate::process_management::process::Process;
+    use tokio_test::assert_ok;
 
-#[test]
-fn test_loading_process() {
-    let proc = Process::new(TEST_PROGRAM);
+    #[cfg(target_os = "windows")]
+    const TEST_PROGRAM: &str = "calc.exe";
+    #[cfg(not(target_os = "windows"))]
+    const TEST_PROGRAM: &str = "yes";
 
-    assert!(proc.is_ok(), "Could not load program \"{TEST_PROGRAM}\"");
-}
+    #[test]
+    fn test_loading_process() {
+        assert_ok!(Process::new(TEST_PROGRAM));
+    }
 
-#[test]
-fn test_dropping_process() {
-    let proc = Process::new(TEST_PROGRAM);
+    #[test]
+    fn test_dropping_process() {
+        let proc = assert_ok!(Process::new(TEST_PROGRAM));
 
-    assert!(proc.is_ok(), "Could not load program \"{TEST_PROGRAM}\"");
-
-    drop(proc.unwrap());
+        drop(proc);
+    }
 }
