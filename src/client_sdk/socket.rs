@@ -1,18 +1,15 @@
-use futures::{
-    io::BufReader, AsyncBufReadExt, AsyncWriteExt, AsyncReadExt, AsyncBufRead
-};
 use interprocess::local_socket::{
     tokio::{
         LocalSocketStream, OwnedReadHalf, OwnedWriteHalf,
-    },
-    NameTypeSupport
+    }
 };
-use log::debug;
 
-use crate::api::schema::instructions::{
-    CoreInstruction, PluginInstruction
+use crate::{
+    api::schema::instructions::{
+        CoreInstruction, PluginInstruction
+    },
+    utils::socket::*
 };
-use crate::utils::socket::*;
 
 #[derive(Debug)]
 pub struct SocketCommunicator {
@@ -41,32 +38,13 @@ impl SocketCommunicator {
     }
 
     pub async fn recv_plugin_instruction(&mut self) -> Result<PluginInstruction, String> {
-        let mut reader = BufReader::new(&mut self.reader);
-        let mut buffer = String::with_capacity(128);
-
-        match reader.read_line(&mut buffer).await {
-            Ok(_) => {},
+        let data  = match receive_line(&mut self.reader).await {
+            Ok(s) => s,
             Err(e) => {
-                debug!("Failed to read data from buffer! Received data {}, e: {}", buffer, e);
                 return Err(e.to_string());
             }
-        }
+        };
         
-        match serde_json::from_str::<PluginInstruction>(&buffer) {
-            Ok(ins) => Ok(ins),
-            Err(e) => {
-                debug!("Failed to deserialize PluginInstruction! Received data {}", buffer);
-                Err(e.to_string())
-            }
-        }
-    }
-}
-
-fn get_socket_name(name: String) -> String {
-    use NameTypeSupport::*;
-
-    match NameTypeSupport::query() {
-        OnlyPaths | Both => format!("/tmp/{}.sock", name),
-        OnlyNamespaced => format!("@{}.sock", name)
+        convert_str_to_struct::<PluginInstruction>(&data)
     }
 }
