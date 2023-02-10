@@ -21,7 +21,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-        run: cargo build
       - name: Run Unit Tests
         uses: actions-rs/cargo@v1
         with:
