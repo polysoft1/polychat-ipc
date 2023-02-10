@@ -139,23 +139,24 @@ fn expected_file(entry: &DirEntry) -> bool {
     return is_file && extension == EXEC_EXTENSION;
 }
 
-#[test]
-#[ignore]
-fn test_loading_from_dir() {
-    let proc_man = ProcessManager::new("C:\\Users\\Admin\\Documents\\polychat-plugins");
+#[cfg(test)]
+mod test{
+    use crate::process_management::process_manager::ProcessManager;
+    use tokio_test::{assert_ok, assert_err};
 
-    assert!(proc_man.is_ok(), "Could not load processes from folder: {}", proc_man.unwrap_err());
-}
+    #[test]
+    #[ignore]
+    fn test_loading_from_dir() {
+        assert_ok!(ProcessManager::new("C:\\Users\\Admin\\Documents\\polychat-plugins"));
+    }
 
-#[test]
-fn test_loading_from_realitve_path() {
-    let proc_man = ProcessManager::new("./plugins");
+    #[test]
+    fn test_loading_from_realitve_path() {
+        assert_err!(ProcessManager::new("./plugins"));
+    }
 
-    assert!(proc_man.is_err(), "Process Manager loaded from realtive path");
-}
-
-#[test]
-fn test_loading_from_file() {
-    let proc_man = ProcessManager::new("/etc/passwd");
-    assert!(proc_man.is_err(), "Process Manager loaded from file path");
+    #[test]
+    fn test_loading_from_file() {
+        assert_err!(ProcessManager::new("/etc/passwd"));
+    }
 }

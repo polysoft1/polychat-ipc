@@ -1,14 +1,14 @@
-use crate::api::schema::{
-    instructions::{CoreInstruction, CoreInstructionType, PluginInstruction}
+use crate::{
+    api::schema::{
+        instructions::{CoreInstruction, CoreInstructionType, PluginInstruction},
+    },
+    utils::socket::*
 };
 
 use log::{debug, error, warn, trace};
 use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream}
-};
-use futures::{
-    io::BufReader, AsyncBufReadExt, AsyncWriteExt
 };
 use std::{path::Path, fs};
 
@@ -60,19 +60,19 @@ impl SocketHandler {
      */
     pub async fn run(&self) {      
         loop {
-            let conn = match self.listener.accept().await {
+            let conn = match self.get_connection().await {
                 Ok(c) => c,
-                Err(e) => {
-                    warn!("Could not accept a socket connection: {}", e);
+                Err(_) => {
                     continue;
                 }
             };
 
-            let data = match self.recv_data(conn).await {
-                None => {
+            let (mut reader, _) = conn.into_split();
+            let data = match receive_line(&mut reader).await {
+                Err(_) => {
                     continue;
                 },
-                Some(s) => s
+                Ok(s) => s
             };
             
             let _ = self.handle_message(data).await;
@@ -91,69 +91,20 @@ impl SocketHandler {
 
     pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<(), String> {
         let (_, mut writer) = conn.into_split();
-        let payload = match serde_json::to_string(&inst) {
+        let payload = match convert_struct_to_str(inst) {
             Ok(s) => s,
             Err(e) => {
                 warn!("Could not convert instruction to a String!");
                 return Err(e.to_string());
             }
         };
-        let buffer = format!("{}\n", payload);
-        match writer.write_all(buffer.as_bytes()).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                warn!("Could not write all data to buffer");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    pub async fn get_core_instruction_data(&self) -> Result<String, String> {
-        let conn = match self.listener.accept().await {
-            Ok(c) => c,
-            Err(e) => {
-                warn!("Could not accept a socket connection: {}", e);
-                return Err(e.to_string());
-            }
-        };
-
-        match self.recv_data(conn).await {
-            None => {
-                Ok("".to_string())
-            },
-            Some(s) => Ok(s)
-        }
-    }
-
-    /** Receives data from a new connection, returning any data it might have sent
-     * 
-     * # Arguments
-     * ## `conn`
-     * A LocalSocketStream connection to a remote process
-     * 
-     * # Returns
-     * `None` if no data was received (or the read errored out)
-     * 
-     * A `String` containing the data sent if the connection suceeded.
-     */
-    async fn recv_data(&self, conn: LocalSocketStream) -> Option<String> {
-        let (reader, _) = conn.into_split();
-        let mut reader = BufReader::new(reader);
-        let mut data = String::with_capacity(128);
-
-        let read_res = reader.read_line(&mut data).await;
         
-        match read_res {
-            Ok(size) => {
-                debug!("Received {} bytes from a client", size);
-                debug!("Message contents: {}", data);
-                Some(data)
-            },
-            Err(e) => {
-                warn!("Could not read from client: {}", e);
-                return None;
-            }
-        }
+        return send_str_over_ipc(&payload, &mut writer).await;
+    }
+
+    pub async fn get_core_instruction_data(&self, conn: LocalSocketStream) -> Result<String, String> {
+        let (mut reader, _) = conn.into_split();
+        return receive_line(&mut reader).await;
     }
 
     /**
@@ -221,45 +172,30 @@ impl Drop for SocketHandler {
     }
 }
 
-fn get_socket_name<S>(name: S) -> String where S: Into<String> + std::fmt::Display {
-    use NameTypeSupport::*;
-    match NameTypeSupport::query() {
-        OnlyPaths | Both => format!("/tmp/{}.sock", name),
-        OnlyNamespaced => format!("@{}.sock", name),
-    }
-}
-
 #[cfg(test)]
 mod test{
     use crate::core::SocketHandler;
     use rstest::*;
+    use tokio_test::{assert_ok, assert_err};
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn create_socket_succeeds() {
-        let socket = SocketHandler::new("polychat");
-
-        assert!(socket.is_ok(), "Socket Handler was unable to init: {}", socket.unwrap_err());
+        assert_ok!(SocketHandler::new("polychat"));
     }
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn socket_cleans_up_after_itself() {
-        let socket = SocketHandler::new("polychat");
-
-        assert!(socket.is_ok(), "Second SocketHandler could not be initialized: {}", socket.unwrap_err());
+        assert_ok!(SocketHandler::new("polychat"));
     }
 
     #[tokio::test]
     async fn socket_json_handles_malformed_instruction() {
-        let socket = SocketHandler::new("malformed_instruction");
+        let socket = assert_ok!(SocketHandler::new("malformed_instruction"));
         let garbage = "{\"instruction_type\": \"Silliness\",\"payload\": {}}";
 
-        assert!(socket.is_ok(), "Could not init SocketHandler");
-        let socket = socket.unwrap();
-
-        let ins = socket.handle_message(String::from(garbage)).await;
-        assert!(ins.is_err(), "SocketHandler did not err on malformed instruction");
+        assert_err!(socket.handle_message(String::from(garbage)).await);
     }
 
     #[rstest]
@@ -268,13 +204,10 @@ mod test{
     #[case("AuthAccountResponse")]
     #[tokio::test]
     async fn socket_json_handles_valid_core_instruction_types(#[case] ins_type: String) {
-        let socket = SocketHandler::new(format!("{}_instruction", ins_type));
-        assert!(socket.is_ok(), "Could not init SocketHandler");
-        let socket = socket.unwrap();
+        let socket = assert_ok!(SocketHandler::new(format!("{}_instruction", ins_type)));
         
         let inst = format!("{{\"instruction_type\": \"{}\", \"payload\": {{}} }}", ins_type);
-        let result = socket.handle_message(String::from(inst)).await;
-        assert!(result.is_ok(), "SocketHandler could not handle type: {}", ins_type);
+        assert_ok!(socket.handle_message(String::from(inst)).await);
     }
 
 }

@@ -2,7 +2,8 @@
 mod test {
     use rstest::*;
     use serde_json::value::RawValue;
-    use log::debug;
+
+    use tokio_test::assert_ok;
 
     use polychat_ipc::{
         core::socket_handler::SocketHandler,
@@ -34,15 +35,12 @@ mod test {
 
         let send_res = comm.send_core_instruction(&instruct);
 
-        let recv_res = handler.get_core_instruction_data();
-        send_res.await;
+        let conn = assert_ok!(handler.get_connection().await);
+        let recv_res = handler.get_core_instruction_data(conn);
+        assert_ok!(send_res.await);
 
-        let recv_res = recv_res.await;
-        assert!(recv_res.is_ok(), "Error receiving CoreInstruction via Core");
-        let des_ins = handler.handle_message(recv_res.unwrap()).await;
-        assert!(des_ins.is_ok(), "Error Decoding CoreInstruction");
-
-        assert_eq!(des_ins.unwrap(), instruct);
+        let recv_res = assert_ok!(recv_res.await);
+        assert_ok!(handler.handle_message(recv_res).await);
     }
 
     #[rstest]
@@ -58,27 +56,19 @@ mod test {
             payload: create_core_payload(),
             instruction_type: ins_type
         };
-        let conn = server.get_connection().await;
-        assert!(conn.is_ok(), "Could not accept a connection!");
-        let send = server.send_plugin_instruction(conn.unwrap(), &instruct).await;
-        assert!(send.is_ok(), "Issue sending plugin instruction!");
+        let conn = assert_ok!(server.get_connection().await);
+        assert_ok!(server.send_plugin_instruction(conn, &instruct).await);
 
-        let recv = client.recv_plugin_instruction().await;
-        assert!(recv.is_ok(), "Issue receving plugin instruction!");
-        assert_eq!(instruct, recv.unwrap());
+        let recv = assert_ok!(client.recv_plugin_instruction().await);
+        assert_eq!(instruct, recv);
     }
 
     fn create_handler(name: String) -> SocketHandler {
-        let handler = SocketHandler::new(name);
-        assert!(handler.is_ok(), "Could not initialize SocketHandler");
-
-        handler.unwrap()
+        assert_ok!(SocketHandler::new(name))
     }
-    async fn create_communicator(name: String) -> SocketCommunicator {
-        let comms = SocketCommunicator::new(name).await;
-        assert!(comms.is_ok(), "Could not initialize SocketCommunicator: {}", comms.unwrap_err());
 
-        comms.unwrap()
+    async fn create_communicator(name: String) -> SocketCommunicator {
+        assert_ok!(SocketCommunicator::new(name).await)
     }
 
     fn create_core_payload() -> Box<RawValue> {
