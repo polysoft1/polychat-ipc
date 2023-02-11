@@ -37,7 +37,7 @@ impl SocketHandler {
      * - Windows/Linux - Creates a namespaced socket (@[`socket_name`](#socket_name).sock)
      * - BSD/Mac/\*NIX - Creates a filepath socket at /tmp/[`socket_name`](#socket_name).sock
      **/
-    pub fn new<S>(socket_name: S) -> Result<Self, String> where S: Into<String> + std::fmt::Display {
+    pub fn new<S>(socket_name: S) -> Result<Self> where S: Into<String> + std::fmt::Display {
         let name = get_socket_name(socket_name);
 
         debug!("Attempting to start server at {}", name);
@@ -45,7 +45,7 @@ impl SocketHandler {
             Ok(l) => l,
             Err(e) => {
                 error!("Could not start server: {}", e);
-                return Err(e.to_string());
+                return Err(e.into());
             }
         };
         debug!("Server started at {}", name);
