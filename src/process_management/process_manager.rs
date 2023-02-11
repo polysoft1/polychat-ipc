@@ -1,6 +1,6 @@
 use std::{
     ffi::OsStr,
-    path::Path
+    path::PathBuf, str::FromStr
 };
 use log::{error, warn, debug};
 use walkdir::{DirEntry, WalkDir};
@@ -38,8 +38,8 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn new(path: &'static str) -> Result<ProcessManager> {
-        ProcessManager::from_path(Path::new(path))
+    pub fn new(path: &str) -> Result<ProcessManager> {
+        ProcessManager::from_path(PathBuf::from_str(path)?)
     }
 
     /**
@@ -58,8 +58,8 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn from_path(dir: &'static Path) -> Result<ProcessManager> {
-        check_directory(dir)?;
+    pub fn from_path(dir: PathBuf) -> Result<ProcessManager> {
+        check_directory(dir.clone())?;
 
         let dir_walk = WalkDir::new(dir).max_depth(2).min_depth(2).follow_links(false);
         let mut exec_vec: Vec<Process> = Vec::new();
@@ -106,7 +106,7 @@ impl ProcessManager {
  * 
  * A string slice describing why it does not meet all criteria on failure
  */
-fn check_directory(dir: &Path) -> Result<(), ProcessManagerError> {
+fn check_directory(dir: PathBuf) -> Result<(), ProcessManagerError> {
     if !dir.is_absolute() {
         let err = ProcessManagerError::RelativePath(dir);
         error!("{}", err);

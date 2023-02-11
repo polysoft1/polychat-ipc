@@ -1,13 +1,13 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ProcessManagerError<'a> {
+pub enum ProcessManagerError {
     #[error("Path '{0}' does not exist")]
-    NonExistent(&'a Path),
+    NonExistent(PathBuf),
     #[error("'{0}' is a relative path")]
-    RelativePath(&'a Path),
+    RelativePath(PathBuf),
     #[error("'{0}' is not a directory")]
-    NonDirectory(&'a Path)
+    NonDirectory(PathBuf)
 }
