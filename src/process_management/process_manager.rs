@@ -4,8 +4,12 @@ use std::{
 };
 use log::{error, warn, debug};
 use walkdir::{DirEntry, WalkDir};
+use anyhow::Result;
 
-use crate::process_management::process::Process;
+use crate::process_management::{
+    process::Process,
+    error::ProcessManagerError
+};
 
 #[cfg(target_os = "windows")]
 const EXEC_EXTENSION: &str = "exe";
@@ -34,7 +38,7 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn new(path: &str) -> Result<ProcessManager, &str> {
+    pub fn new(path: &'static str) -> Result<ProcessManager> {
         ProcessManager::from_path(Path::new(path))
     }
 
@@ -54,7 +58,7 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn from_path(dir: &Path) -> Result<ProcessManager, &str> {
+    pub fn from_path(dir: &'static Path) -> Result<ProcessManager> {
         check_directory(dir)?;
 
         let dir_walk = WalkDir::new(dir).max_depth(2).min_depth(2).follow_links(false);
@@ -102,19 +106,21 @@ impl ProcessManager {
  * 
  * A string slice describing why it does not meet all criteria on failure
  */
-fn check_directory(dir: &Path) -> Result<(), &str> {
-    let str_path = dir.to_str().unwrap_or("Unknown path");
+fn check_directory(dir: &Path) -> Result<(), ProcessManagerError> {
     if !dir.is_absolute() {
-        error!("Path {} is not absolute", str_path);
-        return Err("Path must be absolute");
+        let err = ProcessManagerError::RelativePath(dir);
+        error!("{}", err);
+        return Err(err);
     }
     if !dir.exists() {
-        error!("Directory {} does not exist", str_path);
-        return Err("Directory does not exist");
+        let err = ProcessManagerError::NonExistent(dir); 
+        error!("{}", err);
+        return Err(err);
     }
     if !dir.is_dir() {
-        error!("Path {} is not a directory", str_path);
-        return Err("Path is not a directory");
+        let err = ProcessManagerError::NonDirectory(dir);
+        error!("{}", err);
+        return Err(err);
     }
 
     Ok(())
