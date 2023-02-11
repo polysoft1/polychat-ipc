@@ -4,17 +4,15 @@ use std::{
 };
 
 use log::{warn, debug};
-
+use anyhow::Result;
 #[derive(Debug)]
 pub struct Process {
     child: Child,
 }
 
 impl Process {
-    pub fn new<T: AsRef<OsStr> + std::fmt::Debug>(path: T) -> Result<Process, String> {
-        let child = Command::new(&path).stdout(Stdio::null()).spawn();
-
-        match child {
+    pub fn new<T: AsRef<OsStr> + std::fmt::Debug>(path: T) -> Result<Process> {
+        match Command::new(&path).stdout(Stdio::null()).spawn() {
             Ok(child) => {
                 debug!("Successfully started process {:?} with PID {}", path, child.id());
                 Ok(Process {
@@ -23,9 +21,7 @@ impl Process {
             },
             Err(e) => {
                 debug!("Could not load process from path {:?}: {}", &path, e);
-                Err(
-                    format!("Could not load process from path {:?}: {}", path, e)
-                )
+                Err(e.into())
             }
         }
     }
