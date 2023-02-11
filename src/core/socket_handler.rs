@@ -12,6 +12,8 @@ use interprocess::local_socket::{
 };
 use std::{path::Path, fs};
 
+use anyhow::Result;
+
 #[derive(Debug)]
 pub struct SocketHandler {
     socket_name: String,
@@ -79,30 +81,30 @@ impl SocketHandler {
         }
     }
 
-    pub async fn get_connection(&self) -> Result<LocalSocketStream, String> {
+    pub async fn get_connection(&self) -> Result<LocalSocketStream> {
         match self.listener.accept().await {
             Ok(c) => Ok(c),
             Err(e) => {
                 warn!("Could not accept a socket connection: {}", e);
-                return Err(e.to_string());
+                return Err(e.into());
             }
         }
     }
 
-    pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<(), String> {
+    pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<()> {
         let (_, mut writer) = conn.into_split();
         let payload = match convert_struct_to_str(inst) {
             Ok(s) => s,
             Err(e) => {
                 warn!("Could not convert instruction to a String!");
-                return Err(e.to_string());
+                return Err(e.into());
             }
         };
         
         return send_str_over_ipc(&payload, &mut writer).await;
     }
 
-    pub async fn get_core_instruction_data(&self, conn: LocalSocketStream) -> Result<String, String> {
+    pub async fn get_core_instruction_data(&self, conn: LocalSocketStream) -> Result<String> {
         let (mut reader, _) = conn.into_split();
         return receive_line(&mut reader).await;
     }
@@ -122,13 +124,13 @@ impl SocketHandler {
      * 
      * A String containing error information on failure
      */
-    pub async fn handle_message(&self, data: String) -> Result<CoreInstruction, String> {
+    pub async fn handle_message(&self, data: String) -> Result<CoreInstruction> {
         trace!("Serializing {}", data);
         let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
             Ok(data) => data,
             Err(e) => {
                 debug!("Unrecognized instruction received");
-                return Err(e.to_string());
+                return Err(e.into());
             }
         };
         
