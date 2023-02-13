@@ -8,6 +8,7 @@ use super::schema::{
 use log::{trace, error};
 use std::sync::Arc;
 
+use anyhow::Result;
 /// A trait to be implemented by the core for instructions sent from a plugin
 /// Also can be implemented by the plugin SDK, which can then be translated
 /// to instructions, and back again in the core.
@@ -20,7 +21,7 @@ pub trait CoreInstructionHandler {
 /// A function that finishes processing the CoreInstruction, and sends the
 /// data to the correct function on the given handler function.
 pub fn call_core_handler(unprocessed_instr: CoreInstruction,
-    interface: Arc<dyn CoreInstructionHandler>) -> Result<(), String>
+    interface: Arc<dyn CoreInstructionHandler>) -> Result<()>
 {
     match unprocessed_instr.instruction_type {
         CoreInstructionType::Init => {
@@ -32,7 +33,7 @@ pub fn call_core_handler(unprocessed_instr: CoreInstruction,
                 },
                 Err(e) => {
                     error!("Invalid data for instruction type Init.");
-                    return Err(e.to_string());
+                    return Err(e.into());
                 }
             }
         },
@@ -45,7 +46,7 @@ pub fn call_core_handler(unprocessed_instr: CoreInstruction,
                 },
                 Err(e) => {
                     error!("Invalid data for instruction type AuthAccountResponse.");
-                    return Err(e.to_string());
+                    return Err(e.into());
                 }
             }
 
@@ -59,7 +60,7 @@ pub fn call_core_handler(unprocessed_instr: CoreInstruction,
                 },
                 Err(e) => {
                     error!("Invalid data for instruction type Keepalive.");
-                    return Err(e.to_string());
+                    return Err(e.into());
                 }
             }
 

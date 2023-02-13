@@ -4,6 +4,8 @@ use super::schema::{
     instructions::{PluginInstruction, PluginInstructionType}
 };
 
+use anyhow::Result;
+
 use log::{trace, error};
 use std::sync::Arc;
 
@@ -17,7 +19,7 @@ pub trait PluginInstructionHandler {
 /// A function that finishes processing the PluginInstruction, and sends the
 /// data to the correct function on the given handler function.
 pub fn call_core_handler(unprocessed_instr: PluginInstruction,
-    interface: Arc<dyn PluginInstructionHandler>) -> Result<(), String>
+    interface: Arc<dyn PluginInstructionHandler>) -> Result<()>
 {
     match unprocessed_instr.instruction_type {
         PluginInstructionType::AuthAccount => {
@@ -29,7 +31,7 @@ pub fn call_core_handler(unprocessed_instr: PluginInstruction,
                 },
                 Err(e) => {
                     error!("Invalid data for instruction type AuthAccountInstruction.");
-                    return Err(e.to_string());
+                    return Err(e.into());
                 }
             }
 
@@ -43,7 +45,7 @@ pub fn call_core_handler(unprocessed_instr: PluginInstruction,
                 },
                 Err(e) => {
                     error!("Invalid data for instruction type Keepalive.");
-                    return Err(e.to_string());
+                    return Err(e.into());
                 }
             }
 
