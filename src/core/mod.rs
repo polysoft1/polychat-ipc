@@ -23,13 +23,4 @@ impl Core {
             socket_hadler: handler
         })
     }
-
-    /**
-     * Starts the main loop of Core, allowing messages to be received from plugins
-     * 
-     * **THIS IS AN INFINITE LOOP**
-     */
-    pub async fn run(&self) {
-        self.socket_hadler.run().await;
-    }
 }

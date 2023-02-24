@@ -1,11 +1,11 @@
 use crate::{
     api::schema::{
-        instructions::{CoreInstruction, CoreInstructionType, PluginInstruction},
+        instructions::{CoreInstruction, PluginInstruction},
     },
     utils::socket::*
 };
 
-use log::{debug, error, warn, trace};
+use log::{debug, error, warn};
 use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream, OwnedReadHalf, OwnedWriteHalf}
@@ -32,8 +32,8 @@ impl SocketHandler {
      * The name to be used for the filepath or namespace
      * 
      * # Returns
-     * A `Result` is returned, if successful the SocketHandler is provided
-     * otherwise, a `String` is returned containing the error.
+     * A [Result] is returned, if successful the SocketHandler is provided
+     * otherwise, an [Error](std::error::Error) is returned containing the error.
      * 
      * # Platform-Dependent Behavior
      * - Windows/Linux - Creates a namespaced socket (@[`socket_name`](#socket_name).sock)
@@ -59,38 +59,27 @@ impl SocketHandler {
         })
     }
 
-    /** The main thread loop of SocketHandler, this will handle the
-     * incoming socket connections and direct them off to where they need to go
+    /**
+     * Reads an instruction from the socket connection, fails when an unrecongized
+     * instruction is received
      * 
-     * **THIS FUNCTION CONTAINS AN INFINITE LOOP, RUN IT IN ITS OWN THREAD**
-     */
-    pub async fn run(&self) {      
-        loop {
-            let conn = match self.get_connection().await {
-                Ok(c) => c,
-                Err(_) => {
-                    continue;
-                }
-            };
-
-            let (mut reader, _) = conn.into_split();
-            let data = match receive_line(&mut reader).await {
-                Err(_) => {
-                    continue;
-                },
-                Ok(s) => s
-            };
-            
-            let _ = self.handle_message(data).await;
-        }
-    }
-
+     * # Return
+     * Upon a successful read and parse from the socket, a [CoreInstruction]
+     * is returned.  Otherwise an [Error](std::error::Error) is returned.
+     **/
     pub async fn get_instruction(&mut self) -> Result<CoreInstruction> {
         self.update_owned_split().await?;
-        let data = self.get_core_instruction_data().await?;
+        let data = self.get_data().await?;
         convert_str_to_struct::<CoreInstruction>(&data)
     }
 
+    /**
+     * If the read or write part of the connection are not associated with this object, a new connection is
+     * gathered, and then the read/write parts are assigned to this object
+     * 
+     * # Returns
+     * A [Result] is returned, void if successful, [Error](std::error::Error) if unsuccessful
+     **/
     async fn update_owned_split(&mut self) -> Result<()> {
         if self.read.is_none() || self.write.is_none() {
                 let (read, write) = self.get_connection().await?.into_split();
@@ -100,6 +89,12 @@ impl SocketHandler {
         Ok(())
     }
 
+    /**
+     * Gets a connection from the socket
+     * 
+     * # Returns
+     * A [Result] is returned, with [LocalSocketStream] on success, and [Error](std::error::Error) on failure
+     **/
     async fn get_connection(&self) -> Result<LocalSocketStream> {
         match self.listener.accept().await {
             Ok(c) => Ok(c),
@@ -109,7 +104,15 @@ impl SocketHandler {
             }
         }
     }
-
+    /**
+     * Sends a [PluginInstruction] over the socket for the plugin process to handle.
+     * 
+     * # Parameters
+     * - inst ([PluginInstruction]): The instruction to be sent
+     * 
+     * # Returns
+     * A [Result], void on success, [Error](std::error::Error) on failure
+     **/
     pub async fn send_plugin_instruction(&mut self, inst: &PluginInstruction) -> Result<()> {
         self.update_owned_split().await?;
         let payload = match convert_struct_to_str(inst) {
@@ -123,50 +126,16 @@ impl SocketHandler {
         return send_str_over_ipc(&payload, self.write.as_mut().unwrap()).await;
     }
 
-    async fn get_core_instruction_data(&mut self) -> Result<String> {
+    /**
+     * Reads data from the socket connection, and returns what it found
+     * 
+     * # Returns
+     * A [Result] containing the received data in a [String] or a [Error](std::error::Error) on failure
+     **/
+    async fn get_data(&mut self) -> Result<String> {
         self.update_owned_split().await?;
         let reader = self.read.as_mut().unwrap();
         return receive_line(reader).await;
-    }
-
-    /**
-     * Handles a message, serializing it to a [CoreInstruction] and then returning it
-     * 
-     * TEMPORARY FUNCTIONALITY: Log what kind of instruction was received
-     * (this should be delegated off to whatever function handles the particular [CoreInstruction])
-     * 
-     * # Arguments
-     * ## data
-     * A [String] containing JSON data serializable to a [CoreInstruction]
-     * 
-     * # Returns
-     * A [CoreInstruction] on success
-     * 
-     * A String containing error information on failure
-     */
-    pub async fn handle_message(&self, data: String) -> Result<CoreInstruction> {
-        trace!("Serializing {}", data);
-        let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
-            Ok(data) => data,
-            Err(e) => {
-                debug!("Unrecognized instruction received");
-                return Err(e.into());
-            }
-        };
-        
-        match data.instruction_type {
-            CoreInstructionType::Init => {
-                debug!("Init Instruction received");
-            },
-            CoreInstructionType::AuthAccountResponse => {
-                debug!("Account Auth Instruction received");
-            },
-            CoreInstructionType::KeepaliveResponse => {
-                debug!("Keep Alive Instruction received");
-            }
-        };
-
-        Ok(data)
     }
 }
 
@@ -197,8 +166,7 @@ impl Drop for SocketHandler {
 #[cfg(test)]
 mod test{
     use crate::core::SocketHandler;
-    use rstest::*;
-    use tokio_test::{assert_ok, assert_err};
+    use tokio_test::{assert_ok};
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
@@ -211,25 +179,4 @@ mod test{
     async fn socket_cleans_up_after_itself() {
         assert_ok!(SocketHandler::new("polychat"));
     }
-
-    #[tokio::test]
-    async fn socket_json_handles_malformed_instruction() {
-        let socket = assert_ok!(SocketHandler::new("malformed_instruction"));
-        let garbage = "{\"instruction_type\": \"Silliness\",\"payload\": {}}";
-
-        assert_err!(socket.handle_message(String::from(garbage)).await);
-    }
-
-    #[rstest]
-    #[case("Init")]
-    #[case("KeepaliveResponse")]
-    #[case("AuthAccountResponse")]
-    #[tokio::test]
-    async fn socket_json_handles_valid_core_instruction_types(#[case] ins_type: String) {
-        let socket = assert_ok!(SocketHandler::new(format!("{}_instruction", ins_type)));
-        
-        let inst = format!("{{\"instruction_type\": \"{}\", \"payload\": {{}} }}", ins_type);
-        assert_ok!(socket.handle_message(String::from(inst)).await);
-    }
-
 }
