@@ -5,7 +5,7 @@ use socket_handler::SocketHandler;
 use anyhow::Result;
 
 pub struct Core {
-    socket_hadler: SocketHandler
+    socket_handler: SocketHandler
 }
 
 impl Core {
@@ -20,7 +20,7 @@ impl Core {
         let handler = SocketHandler::new("polychat")?;
 
         Ok(Core {
-            socket_hadler: handler
+            socket_handler: handler
         })
     }
 }
