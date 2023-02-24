@@ -34,6 +34,8 @@ impl Process {
             }
         }
     }
+    pub async fn get_instruction(&self) {
+    }
 }
 
 impl Drop for Process {

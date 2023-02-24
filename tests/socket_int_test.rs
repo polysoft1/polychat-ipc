@@ -25,7 +25,7 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn integration_test_core_instruction_sending(#[case] ins_type: CoreInstructionType){
         let socket_name = format!("int_test_{}", ins_type);
-        let handler = create_handler(socket_name.clone());
+        let mut handler = create_handler(socket_name.clone());
 
         let mut comm = create_communicator(socket_name).await;
         let instruct = CoreInstruction{
@@ -35,12 +35,11 @@ mod test {
 
         let send_res = comm.send_core_instruction(&instruct);
 
-        let conn = assert_ok!(handler.get_connection().await);
-        let recv_res = handler.get_core_instruction_data(conn);
+        let recv_res = handler.get_instruction();
         assert_ok!(send_res.await);
 
         let recv_res = assert_ok!(recv_res.await);
-        assert_ok!(handler.handle_message(recv_res).await);
+        assert_eq!(instruct, recv_res);
     }
 
     #[rstest]
@@ -49,15 +48,15 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn integration_test_plugin_instruction_client(#[case] ins_type: PluginInstructionType) {
         let socket_name = format!("client_ins_{}", ins_type);
-        let server = create_handler(socket_name.clone());
+        let mut server = create_handler(socket_name.clone());
         let mut client = create_communicator(socket_name).await;
 
         let instruct = PluginInstruction{
             payload: create_core_payload(),
             instruction_type: ins_type
         };
-        let conn = assert_ok!(server.get_connection().await);
-        assert_ok!(server.send_plugin_instruction(conn, &instruct).await);
+
+        assert_ok!(server.send_plugin_instruction(&instruct).await);
 
         let recv = assert_ok!(client.recv_plugin_instruction().await);
         assert_eq!(instruct, recv);

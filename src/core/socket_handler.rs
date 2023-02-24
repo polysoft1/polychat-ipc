@@ -8,7 +8,7 @@ use crate::{
 use log::{debug, error, warn, trace};
 use interprocess::local_socket::{
     NameTypeSupport, 
-    tokio::{LocalSocketListener, LocalSocketStream}
+    tokio::{LocalSocketListener, LocalSocketStream, OwnedReadHalf, OwnedWriteHalf}
 };
 use std::{path::Path, fs};
 
@@ -17,7 +17,9 @@ use anyhow::Result;
 #[derive(Debug)]
 pub struct SocketHandler {
     socket_name: String,
-    listener: LocalSocketListener
+    listener: LocalSocketListener,
+    read: Option<OwnedReadHalf>,
+    write: Option<OwnedWriteHalf>
 }
 
 
@@ -51,7 +53,9 @@ impl SocketHandler {
         debug!("Server started at {}", name);
         Ok(SocketHandler{
             listener,
-            socket_name: name
+            socket_name: name,
+            read: None,
+            write: None
         })
     }
 
@@ -81,7 +85,22 @@ impl SocketHandler {
         }
     }
 
-    pub async fn get_connection(&self) -> Result<LocalSocketStream> {
+    pub async fn get_instruction(&mut self) -> Result<CoreInstruction> {
+        self.update_owned_split().await?;
+        let data = self.get_core_instruction_data().await?;
+        convert_str_to_struct::<CoreInstruction>(&data)
+    }
+
+    async fn update_owned_split(&mut self) -> Result<()> {
+        if self.read.is_none() || self.write.is_none() {
+                let (read, write) = self.get_connection().await?.into_split();
+                self.read = Some(read);
+                self.write = Some(write);
+        }
+        Ok(())
+    }
+
+    async fn get_connection(&self) -> Result<LocalSocketStream> {
         match self.listener.accept().await {
             Ok(c) => Ok(c),
             Err(e) => {
@@ -91,8 +110,8 @@ impl SocketHandler {
         }
     }
 
-    pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<()> {
-        let (_, mut writer) = conn.into_split();
+    pub async fn send_plugin_instruction(&mut self, inst: &PluginInstruction) -> Result<()> {
+        self.update_owned_split().await?;
         let payload = match convert_struct_to_str(inst) {
             Ok(s) => s,
             Err(e) => {
@@ -101,12 +120,13 @@ impl SocketHandler {
             }
         };
         
-        return send_str_over_ipc(&payload, &mut writer).await;
+        return send_str_over_ipc(&payload, self.write.as_mut().unwrap()).await;
     }
 
-    pub async fn get_core_instruction_data(&self, conn: LocalSocketStream) -> Result<String> {
-        let (mut reader, _) = conn.into_split();
-        return receive_line(&mut reader).await;
+    async fn get_core_instruction_data(&mut self) -> Result<String> {
+        self.update_owned_split().await?;
+        let reader = self.read.as_mut().unwrap();
+        return receive_line(reader).await;
     }
 
     /**
