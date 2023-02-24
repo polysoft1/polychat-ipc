@@ -1,11 +1,12 @@
 pub mod socket_handler;
-
-use socket_handler::SocketHandler;
+use socket_handler::*;
 
 use anyhow::Result;
 
+use crate::process_management::process_manager::ProcessManager;
+
 pub struct Core {
-    socket_handler: SocketHandler
+    proc_manager: ProcessManager
 }
 
 impl Core {
@@ -17,10 +18,10 @@ impl Core {
      * A string describing the error on failure (more details can be found in logs, adjust `RUST_LOG` level)
      */
     pub fn new() -> Result<Core> {
-        let handler = SocketHandler::new("polychat")?;
+        let man = ProcessManager::new("polychat")?;
 
         Ok(Core {
-            socket_handler: handler
+            proc_manager: man
         })
     }
 }
