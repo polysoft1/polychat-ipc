@@ -22,7 +22,7 @@ const EXEC_EXTENSION: &str = "";
 
 #[derive(Debug)]
 pub struct ProcessManager {
-    process_list: Vec<Process>,
+    _process_list: Vec<Process>,
 }
 
 impl ProcessManager {
@@ -93,7 +93,7 @@ impl ProcessManager {
         }
 
         Ok(ProcessManager {
-            process_list: exec_vec
+            _process_list: exec_vec
         })
     }
 }
