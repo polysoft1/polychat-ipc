@@ -3,7 +3,7 @@ use crate::{core::socket_handler::SocketHandler, api::schema::instructions::Core
 use std::{
     process::{Child, Command, Stdio},
     fmt::Debug, path::PathBuf,
-    sync::mpsc::{self, Receiver}
+    sync::mpsc::{self, Receiver, Sender}
 };
 use log::{warn, debug, error, trace};
 
@@ -29,25 +29,7 @@ impl Process {
                 Ok(Process {
                     child,
                     core_read_thread: tokio::spawn(async move {
-                        loop {
-                            let data = socket.get_instruction().await;
-                            match &data {
-                                Ok(v) => {
-                                    trace!("Sending result {}", v);
-                                }
-                                Err(e) => {
-                                    trace!("Sending error {}", e);
-                                }
-                            };
-                            match tx.send(data) {
-                                Err(e) => {
-                                    error!("Could not send instruction {}", e);
-                                }
-                                _ => {
-                                    trace!("Send successful");
-                                }
-                            };
-                        }
+                        fetch_message_loop(&mut socket, tx).await;
                     }),
                     process_path: path,
                     rx      
@@ -126,6 +108,28 @@ impl Drop for Process {
                 assert!(false, "Error closing process {}: {}", id, e);
             },
             Ok(code) => debug!("Process {} exited with code: {}", id, code)
+        };
+    }
+}
+
+async fn fetch_message_loop(socket: &mut SocketHandler, tx: Sender<Result<CoreInstruction>>) {
+    loop {
+        let data = socket.get_instruction().await;
+        match &data {
+            Ok(v) => {
+                trace!("Sending result {}", v);
+            }
+            Err(e) => {
+                trace!("Sending error {}", e);
+            }
+        };
+        match tx.send(data) {
+            Err(e) => {
+                error!("Could not send instruction {}", e);
+            }
+            _ => {
+                trace!("Send successful");
+            }
         };
     }
 }
