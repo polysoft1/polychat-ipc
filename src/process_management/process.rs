@@ -75,13 +75,7 @@ impl Process {
     }
 
     pub async fn send_instruction(&mut self, inst: &PluginInstruction) -> Result<()>{
-        let mut lock = match self.socket.try_lock() {
-            Err(e) => {
-                debug!("Could not obtain lock: {}", e);
-                return Err(e.into());
-            }
-            Ok(v) => v,
-        };
+        let mut lock = self.socket.lock().await;
 
         lock.send_plugin_instruction(inst).await
     }
@@ -154,6 +148,7 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result
                 trace!("Send successful");
             }
         };
+        std::thread::sleep(std::time::Duration::from_millis(16));
     }
 }
 
