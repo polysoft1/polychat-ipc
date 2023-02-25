@@ -3,25 +3,28 @@ use crate::{core::socket_handler::SocketHandler, api::schema::instructions::Core
 use std::{
     process::{Child, Command, Stdio},
     fmt::Debug, path::PathBuf,
-    sync::mpsc::{self, Receiver, Sender}
+    sync::{mpsc::{self, Receiver, Sender}, Arc}
 };
 use log::{warn, debug, error, trace};
 
 use anyhow::Result;
-use tokio::task::JoinHandle;
+use tokio::{task::JoinHandle, sync::Mutex};
 
 #[derive(Debug)]
 pub struct Process {
     child: Child,
     process_path: PathBuf,
     core_read_thread: JoinHandle<()>,
+    socket: Arc<Mutex<SocketHandler>>,
     rx: Receiver<Result<CoreInstruction>>
 }
 
 impl Process {
-    pub fn new<T>(path: T, mut socket:SocketHandler) -> Result<Process> where PathBuf: From<T> {
+    pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
         let path = PathBuf::from(path);
         let (tx, rx) = mpsc::channel();
+        let socket = Arc::new(Mutex::new(socket));
+        let thrd_socket = socket.clone();
 
         match Command::new(&path).stdout(Stdio::null()).spawn() {
             Ok(child) => {
@@ -29,10 +32,11 @@ impl Process {
                 Ok(Process {
                     child,
                     core_read_thread: tokio::spawn(async move {
-                        fetch_message_loop(&mut socket, tx).await;
+                        fetch_message_loop(thrd_socket, tx).await;
                     }),
                     process_path: path,
-                    rx      
+                    rx,
+                    socket
                 })
             },
             Err(e) => {
@@ -112,9 +116,16 @@ impl Drop for Process {
     }
 }
 
-async fn fetch_message_loop(socket: &mut SocketHandler, tx: Sender<Result<CoreInstruction>>) {
+async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<CoreInstruction>>) {
     loop {
-        let data = socket.get_instruction().await;
+        let mut lock = match socket.try_lock() {
+            Ok(v) => v,
+            Err(e) => {
+                debug!("Could not get lock for socket: {}", e);
+                continue;
+            }
+        };
+        let data = lock.get_instruction().await;
         match &data {
             Ok(v) => {
                 trace!("Sending result {}", v);
