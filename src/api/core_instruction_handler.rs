@@ -2,7 +2,7 @@ use super::schema::{
     auth::{AuthAccountResponse},
     protocol::InitDataInstruction,
     keepalive::KeepaliveInstruction,
-    instructions::{CoreInstruction, CoreInstructionType},
+    instructions::{CoreInstructionType, DeserializableCoreInstr},
 };
 
 use log::{trace, error};
@@ -20,7 +20,7 @@ pub trait CoreInstructionHandler {
 
 /// A function that finishes processing the CoreInstruction, and sends the
 /// data to the correct function on the given handler function.
-pub fn call_core_handler(unprocessed_instr: CoreInstruction,
+pub fn call_core_handler(unprocessed_instr: &DeserializableCoreInstr,
     interface: Arc<dyn CoreInstructionHandler>) -> Result<()>
 {
     match unprocessed_instr.instruction_type {
