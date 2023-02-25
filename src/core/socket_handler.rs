@@ -1,6 +1,6 @@
 use crate::{
     api::schema::{
-        instructions::{CoreInstruction, PluginInstruction},
+        instructions::{CoreInstructionType, SerializablePluginInstr, DeserializableCoreInstr},
     },
     utils::socket::*
 };
@@ -10,7 +10,8 @@ use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream, OwnedReadHalf, OwnedWriteHalf}
 };
-use std::{path::Path, fs};
+use serde::Serialize;
+use std::{path::Path, fs, fmt::Debug};
 
 use anyhow::Result;
 

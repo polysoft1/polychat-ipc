@@ -1,7 +1,7 @@
 use super::schema::{
     auth::AuthAccountInstruction,
     keepalive::KeepaliveInstruction,
-    instructions::{PluginInstruction, PluginInstructionType}
+    instructions::{PluginInstructionType, DeserializablePluginInstr}
 };
 
 use anyhow::Result;
@@ -18,7 +18,7 @@ pub trait PluginInstructionHandler {
 
 /// A function that finishes processing the PluginInstruction, and sends the
 /// data to the correct function on the given handler function.
-pub fn call_core_handler(unprocessed_instr: PluginInstruction,
+pub fn call_core_handler(unprocessed_instr: &DeserializablePluginInstr,
     interface: Arc<dyn PluginInstructionHandler>) -> Result<()>
 {
     match unprocessed_instr.instruction_type {
