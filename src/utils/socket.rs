@@ -1,4 +1,5 @@
-use std::{any::type_name, fmt::Display};
+use std::fmt::Debug;
+use std::any::type_name;
 
 use interprocess::local_socket::tokio::{OwnedReadHalf, OwnedWriteHalf};
 use interprocess::local_socket::NameTypeSupport;
@@ -39,11 +40,11 @@ pub fn convert_str_to_struct<'a, T>(data: &'a String) -> Result<T> where T: Dese
     }
 }
 
-pub fn convert_struct_to_str<T>(msg: &T) -> Result<String> where T: Serialize + Display {
+pub fn convert_struct_to_str<'a, T: 'a>(msg: &T) -> Result<String> where T: Serialize + Debug {
     match serde_json::to_string(msg) {
         Ok(s) => Ok(s),
         Err(e) => {
-            debug!("Error serializing {}: {}", msg, e.to_string());
+            debug!("Error serializing {:?}: {}", msg, e.to_string());
             return Err(e.into());
         }
     }

@@ -1,6 +1,6 @@
 use crate::{
     api::schema::{
-        instructions::{CoreInstruction, CoreInstructionType, PluginInstruction},
+        instructions::{CoreInstructionType, SerializablePluginInstr, DeserializableCoreInstr},
     },
     utils::socket::*
 };
@@ -10,7 +10,8 @@ use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream}
 };
-use std::{path::Path, fs};
+use serde::Serialize;
+use std::{path::Path, fs, fmt::Debug};
 
 use anyhow::Result;
 
@@ -77,7 +78,7 @@ impl SocketHandler {
                 Ok(s) => s
             };
             
-            let _ = self.handle_message(data).await;
+            let _ = self.handle_recv_core_message(data).await;
         }
     }
 
@@ -91,9 +92,9 @@ impl SocketHandler {
         }
     }
 
-    pub async fn send_plugin_instruction(&self, conn: LocalSocketStream, inst: &PluginInstruction) -> Result<()> {
+    pub async fn send_plugin_instruction<P: Serialize + Debug>(&self, conn: LocalSocketStream, inst: &SerializablePluginInstr<P>) -> Result<()> {
         let (_, mut writer) = conn.into_split();
-        let payload = match convert_struct_to_str(inst) {
+        let payload = match convert_struct_to_str(&inst) {
             Ok(s) => s,
             Err(e) => {
                 warn!("Could not convert instruction to a String!");
@@ -124,9 +125,11 @@ impl SocketHandler {
      * 
      * A String containing error information on failure
      */
-    pub async fn handle_message(&self, data: String) -> Result<CoreInstruction> {
+    pub async fn handle_recv_core_message(&self, data: String) -> Result<()> {
+        // TODO: Add parameter for the trait for core instruction handler, and call the appropriate function.
+        // Currently that function is call_core_handler
         trace!("Serializing {}", data);
-        let data = match serde_json::from_str::<CoreInstruction>(data.as_str()) {
+        let data = match serde_json::from_str::<DeserializableCoreInstr>(data.as_str()) {
             Ok(data) => data,
             Err(e) => {
                 debug!("Unrecognized instruction received");
@@ -146,7 +149,7 @@ impl SocketHandler {
             }
         };
 
-        Ok(data)
+        Ok(())
     }
 }
 
@@ -197,7 +200,7 @@ mod test{
         let socket = assert_ok!(SocketHandler::new("malformed_instruction"));
         let garbage = "{\"instruction_type\": \"Silliness\",\"payload\": {}}";
 
-        assert_err!(socket.handle_message(String::from(garbage)).await);
+        assert_err!(socket.handle_recv_core_message(String::from(garbage)).await);
     }
 
     #[rstest]
@@ -209,7 +212,7 @@ mod test{
         let socket = assert_ok!(SocketHandler::new(format!("{}_instruction", ins_type)));
         
         let inst = format!("{{\"instruction_type\": \"{}\", \"payload\": {{}} }}", ins_type);
-        assert_ok!(socket.handle_message(String::from(inst)).await);
+        assert_ok!(socket.handle_recv_core_message(String::from(inst)).await);
     }
 
 }
