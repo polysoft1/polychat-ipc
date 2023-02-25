@@ -1,4 +1,4 @@
-use crate::{core::socket_handler::SocketHandler, api::schema::instructions::CoreInstruction};
+use crate::{core::socket_handler::SocketHandler, api::schema::instructions::{CoreInstruction, PluginInstruction}};
 
 use std::{
     process::{Child, Command, Stdio},
@@ -72,6 +72,18 @@ impl Process {
             Ok(v) => v,
             Err(e) => Err(e.into())
         }
+    }
+
+    pub async fn send_instruction(&mut self, inst: &PluginInstruction) -> Result<()>{
+        let mut lock = match self.socket.try_lock() {
+            Err(e) => {
+                debug!("Could not obtain lock: {}", e);
+                return Err(e.into());
+            }
+            Ok(v) => v,
+        };
+
+        lock.send_plugin_instruction(inst).await
     }
 }
 
