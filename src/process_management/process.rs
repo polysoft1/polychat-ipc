@@ -33,17 +33,19 @@ impl Process {
                             let data = socket.get_instruction().await;
                             match &data {
                                 Ok(v) => {
-                                    trace!("Sent result {}", v);
+                                    trace!("Sending result {}", v);
                                 }
                                 Err(e) => {
-                                    trace!("Sent error {}", e);
+                                    trace!("Sending error {}", e);
                                 }
                             };
                             match tx.send(data) {
                                 Err(e) => {
                                     error!("Could not send instruction {}", e);
                                 }
-                                _ => {}
+                                _ => {
+                                    trace!("Send successful");
+                                }
                             };
                         }
                     }),
