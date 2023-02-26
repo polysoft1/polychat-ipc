@@ -8,10 +8,10 @@ use super::socket::SocketCommunicator;
 // then opens the socket.
 pub async fn run_plugin() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 1 {
-        panic!("Incorrect number of args while running plugin. Got {}, expected 1.", args.len());
+    if args.len() != 2 {
+        panic!("Incorrect number of args while running plugin. Got {}, expected 2.", args.len());
     }
-    let socket_id = args[0].clone();
+    let socket_id = args[1].clone();
 
     let ipc_connection = SocketCommunicator::new(socket_id).await;
     match ipc_connection {

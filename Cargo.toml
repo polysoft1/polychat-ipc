@@ -5,6 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "test-plugin"
+test = false
+bench = false
+
 [dependencies]
 serde = { version = "1.0.152", features=["derive"] }
 serde_json = { version = "1.0.91", features=["raw_value"] }
@@ -22,3 +27,4 @@ rand = "0.8.5"
 test-log = "0.2.11"
 env_logger = "0.10.0"
 rstest = "0.16.0"
+assert_cmd = "2.0"

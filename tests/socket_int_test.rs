@@ -58,10 +58,9 @@ mod test {
 
         assert_ok!(server.send_plugin_instruction(&instruct).await);
 
-        assert_ok!(client.recv_plugin_instruction().await);
-        //assert_eq!(instruct, recv);
-        // TODO: Pass in the interface, and use that to determine whether it successfully
-        // gets the correct data.
+        let recv = assert_ok!(client.recv_plugin_instruction().await);
+        assert_eq!(instruct.instruction_type, recv.instruction_type);
+        assert_eq!(instruct.payload.to_string(), recv.payload.to_string());
     }
 
     fn create_handler(name: String) -> SocketHandler {
