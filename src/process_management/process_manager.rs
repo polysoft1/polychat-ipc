@@ -5,11 +5,15 @@ use std::{
 use log::{error, warn, debug};
 use walkdir::{DirEntry, WalkDir};
 use anyhow::Result;
+use rand::{
+    distributions::Alphanumeric,
+    thread_rng, Rng
+};
 
-use crate::process_management::{
+use crate::{process_management::{
     process::Process,
     error::ProcessManagerError
-};
+}, core::socket_handler::SocketHandler};
 
 #[cfg(target_os = "windows")]
 const EXEC_EXTENSION: &str = "exe";
@@ -18,7 +22,7 @@ const EXEC_EXTENSION: &str = "";
 
 #[derive(Debug)]
 pub struct ProcessManager {
-    process_list: Vec<Process>,
+    _process_list: Vec<Process>,
 }
 
 impl ProcessManager {
@@ -73,8 +77,11 @@ impl ProcessManager {
                 }
             };
             
+            let socket_name: String = thread_rng().sample_iter(&Alphanumeric).take(7).map(char::from).collect();
+            let socket = SocketHandler::new(socket_name)?;
+            
             debug!("Found executable: {}", file.path().display());
-            let proc = Process::new(file.path());
+            let proc = Process::new(file.path(), socket);
 
             match proc {
                 Ok(p) => exec_vec.insert(0, p),
@@ -86,7 +93,7 @@ impl ProcessManager {
         }
 
         Ok(ProcessManager {
-            process_list: exec_vec
+            _process_list: exec_vec
         })
     }
 }
