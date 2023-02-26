@@ -1,6 +1,6 @@
 use crate::{
     api::schema::{
-        instructions::{CoreInstructionType, SerializablePluginInstr, DeserializableCoreInstr},
+        instructions::{SerializablePluginInstr, DeserializableCoreInstr},
     },
     utils::socket::*
 };
@@ -68,10 +68,10 @@ impl SocketHandler {
      * Upon a successful read and parse from the socket, a [CoreInstruction]
      * is returned.  Otherwise an [Error](std::error::Error) is returned.
      **/
-    pub async fn get_instruction(&mut self) -> Result<CoreInstruction> {
+    pub async fn get_instruction(&mut self) -> Result<DeserializableCoreInstr> {
         self.update_owned_split().await?;
         let data = self.get_data().await?;
-        convert_str_to_struct::<CoreInstruction>(&data)
+        convert_str_to_struct::<DeserializableCoreInstr>(&data)
     }
 
     /**
@@ -114,7 +114,7 @@ impl SocketHandler {
      * # Returns
      * A [Result], void on success, [Error](std::error::Error) on failure
      **/
-    pub async fn send_plugin_instruction(&mut self, inst: &PluginInstruction) -> Result<()> {
+    pub async fn send_plugin_instruction<P: Serialize + Debug>(&mut self, inst: &SerializablePluginInstr<P>) -> Result<()> {
         self.update_owned_split().await?;
         let payload = match convert_struct_to_str(inst) {
             Ok(s) => s,

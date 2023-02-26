@@ -37,8 +37,9 @@ mod test {
         assert_ok!(send_res.await);
 
         let recv_res = assert_ok!(recv_res.await);
-        assert_ok!(handler.handle_recv_core_message(recv_res).await);
-        assert_eq!(instruct, recv_res);
+        // Make sure the data didn't get corrupted
+        assert_eq!(instruct.instruction_type, recv_res.instruction_type);
+        assert_eq!(instruct.payload.to_string(), recv_res.payload.to_string());
     }
 
     #[rstest]

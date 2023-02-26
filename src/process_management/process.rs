@@ -1,4 +1,7 @@
-use crate::{core::socket_handler::SocketHandler, api::schema::instructions::{CoreInstruction, PluginInstruction}};
+use crate::{
+    core::socket_handler::SocketHandler,
+    api::schema::instructions::{DeserializableCoreInstr, SerializablePluginInstr}
+};
 
 use std::{
     process::{Child, Command, Stdio},
@@ -8,6 +11,7 @@ use std::{
 use log::{warn, debug, error, trace};
 
 use anyhow::Result;
+use serde::Serialize;
 use tokio::{task::JoinHandle, sync::Mutex};
 
 #[derive(Debug)]
@@ -16,7 +20,7 @@ pub struct Process {
     process_path: PathBuf,
     core_read_thread: JoinHandle<()>,
     socket: Arc<Mutex<SocketHandler>>,
-    rx: Receiver<Result<CoreInstruction>>
+    rx: Receiver<Result<DeserializableCoreInstr>>
 }
 
 impl Process {
@@ -52,7 +56,7 @@ impl Process {
      * # Returns
      * A [bool] on if the next instruction is available
      **/
-    pub fn poll_next_instruction(&self) -> Option<Result<CoreInstruction>> {
+    pub fn poll_next_instruction(&self) -> Option<Result<DeserializableCoreInstr>> {
         match self.rx.try_recv() {
             Ok(v) => Some(v),
             Err(e) => {
@@ -67,14 +71,14 @@ impl Process {
         }
     }
 
-    pub fn get_next_instruction(&mut self) -> Result<CoreInstruction> {
+    pub fn get_next_instruction(&mut self) -> Result<DeserializableCoreInstr> {
         match self.rx.recv() {
             Ok(v) => v,
             Err(e) => Err(e.into())
         }
     }
 
-    pub async fn send_instruction(&mut self, inst: &PluginInstruction) -> Result<()>{
+    pub async fn send_instruction<P: Serialize + Debug>(&mut self, inst: &SerializablePluginInstr<P>) -> Result<()>{
         let mut lock = self.socket.lock().await;
 
         lock.send_plugin_instruction(inst).await
@@ -122,7 +126,7 @@ impl Drop for Process {
     }
 }
 
-async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<CoreInstruction>>) {
+async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<DeserializableCoreInstr>>) {
     loop {
         let mut lock = match socket.try_lock() {
             Ok(v) => v,
@@ -131,16 +135,18 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result
                 continue;
             }
         };
-        let data = lock.get_instruction().await;
-        match &data {
+        // Receive data from socket
+        let rx_data = lock.get_instruction().await;
+        match &rx_data {
             Ok(v) => {
-                trace!("Sending result {}", v);
+                trace!("Sending result {:?}", v);
             }
             Err(e) => {
                 trace!("Sending error {}", e);
             }
         };
-        match tx.send(data) {
+        // Sent to parent thread
+        match tx.send(rx_data) {
             Err(e) => {
                 error!("Could not send instruction {}", e);
             }
@@ -148,6 +154,7 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result
                 trace!("Send successful");
             }
         };
+        // TODO: Determine if the loop efficiently waits, and if so, remove this.
         std::thread::sleep(std::time::Duration::from_millis(16));
     }
 }
