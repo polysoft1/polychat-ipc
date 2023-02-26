@@ -42,7 +42,7 @@ impl SocketCommunicator {
         Ok(send_str_over_ipc(&payload, &mut self.writer).await?)
     }
 
-    pub async fn recv_plugin_instruction(&mut self) -> Result<()> {
+    pub async fn recv_plugin_instruction(&mut self) -> Result<DeserializablePluginInstr> {
         let data  = match receive_line(&mut self.reader).await {
             Ok(s) => s,
             Err(e) => {
@@ -51,10 +51,8 @@ impl SocketCommunicator {
         };
         
         return match convert_str_to_struct::<DeserializablePluginInstr>(&data) {
-            Ok(_plugin_instr) => {
-                // TODO: Call trait that automates getting the data from the packet and
-                // calling the appropriate handler
-                Ok(())
+            Ok(plugin_instr) => {
+                Ok(plugin_instr)
             },
             Err(e) => {
                 Err(e)

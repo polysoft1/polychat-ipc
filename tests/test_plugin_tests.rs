@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod test {
-    use polychat_ipc::{core::socket_handler::SocketHandler};
+    use polychat_ipc::{core::socket_handler::SocketHandler, api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}};
     use rstest::*;
     use tokio_test::assert_ok;
     use std::process::Command;
@@ -20,7 +20,7 @@ mod test {
         // Start the component from core that starts the IPC connections.
         debug!("Starting socket");
         let socket_name = format!("test_plugin_test_init");
-        let handler = create_handler(socket_name.clone());
+        let mut handler = create_handler(socket_name.clone());
         
         // Start the plugin
         debug!("Starting plugin");
@@ -28,17 +28,15 @@ mod test {
         cmd.arg(socket_name.clone());
         let plugin_output = cmd.unwrap();
         debug!("Output of plugin: {:?}", plugin_output);
-        debug!("Started plugin");
-
-        // Process the connection
-        let conn = assert_ok!(handler.get_connection().await);
-        debug!("Received connection");
+        debug!("Started plugin. Now receiving instruction from plugin.");
 
         // Await the init instruction
-        let recv_res = handler.get_core_instruction_data(conn);
+        let recv_res = handler.get_instruction();
         let recv_res = assert_ok!(recv_res.await);
-        debug!("Received data: {}", recv_res);
-        assert_ok!(handler.handle_recv_core_message(recv_res).await);
+        assert_eq!(CoreInstructionType::Init, recv_res.instruction_type);
+        debug!("Received Init. Now validating that it can deserialize it.");
+        let deserialized_instr = serde_json::from_str::<InitDataInstruction>(recv_res.payload.get());
+        assert_ok!(deserialized_instr);
         debug!("Done");
     }
 
