@@ -193,9 +193,9 @@ fn generate_random_ipc_id() -> String {
 #[cfg(test)]
 mod test{
     use crate::process_management::process_manager::ProcessManager;
-    use tokio_test::{assert_err};
 
     // The Ok tests will be done in the integration tests with a plugin binary.
+    use claims::{assert_ok, assert_err};
 
     #[test]
     fn test_loading_from_relative_path() {

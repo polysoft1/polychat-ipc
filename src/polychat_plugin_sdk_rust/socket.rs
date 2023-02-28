@@ -23,7 +23,7 @@ pub struct SocketCommunicator {
 /// The component that handles connecting to the IPC socket or pipe, as well as
 /// serializing and deserializing the instructions sent each way.
 impl SocketCommunicator {
-    pub async fn new(name: String) -> Result<SocketCommunicator> {
+    pub async fn new(name: &String) -> Result<SocketCommunicator> {
         let stream = match LocalSocketStream::connect(get_socket_name(name)).await {
             Ok(s) => s,
             Err(e) => {

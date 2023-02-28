@@ -5,7 +5,7 @@
 mod test {
     use polychat_ipc::{core::socket_handler::SocketHandler, api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}, process_management::process_manager::ProcessManager};
     use rstest::*;
-    use tokio_test::assert_ok;
+    use claims::assert_ok;
     use std::process::Command;
     use assert_cmd::prelude::*; // Add methods on command
     use log::debug;

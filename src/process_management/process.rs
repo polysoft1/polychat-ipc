@@ -6,13 +6,14 @@ use crate::{
 use std::{
     process::{Child, Command, Stdio},
     fmt::Debug, path::PathBuf,
-    sync::{mpsc::{self, Receiver, Sender}, Arc}
+    sync::Arc, time::Duration,
+    thread::sleep
 };
 use log::{warn, debug, error, trace};
 
 use anyhow::Result;
 use serde::Serialize;
-use tokio::{task::JoinHandle, sync::Mutex};
+use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::{self, Receiver, Sender}}, time::timeout};
 
 #[derive(Debug)]
 pub struct Process {
@@ -20,14 +21,14 @@ pub struct Process {
     process_path: PathBuf,
     core_read_thread: JoinHandle<()>,
     socket: Arc<Mutex<SocketHandler>>,
-    rx: Receiver<Result<DeserializableCoreInstr>>
+    rx: Receiver<DeserializableCoreInstr>
 }
 
 impl Process {
     pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
         let socket_name_arg = socket.socket_name.clone();
         let path = PathBuf::from(path);
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel(100);
         let socket = Arc::new(Mutex::new(socket));
         let thrd_socket = socket.clone();
         debug!("Starting process at {:?} with socket name argument {}", &path, &socket_name_arg);
@@ -52,37 +53,17 @@ impl Process {
         }
     }
 
-    /**
-     * Returns if the next core instruction is available
-     * 
-     * # Returns
-     * A [bool] on if the next instruction is available
-     **/
-    pub fn poll_next_instruction(&self) -> Option<Result<DeserializableCoreInstr>> {
-        match self.rx.try_recv() {
-            Ok(v) => Some(v),
-            Err(e) => {
-                match e {
-                    mpsc::TryRecvError::Empty => None,
-                    mpsc::TryRecvError::Disconnected => {
-                        error!("Sending channel for {} disconnected, this should NEVER happen", self.process_path.display());
-                        Some(Err(e.into()))
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn get_next_instruction(&mut self) -> Result<DeserializableCoreInstr> {
-        match self.rx.recv() {
-            Ok(v) => v,
-            Err(e) => Err(e.into())
+    pub async fn get_next_instruction(&mut self) -> Result<Option<DeserializableCoreInstr>> {
+        match self.rx.recv().await {
+            Some(v) => Ok(Some(v)),
+            None => Ok(None)
         }
     }
 
     pub async fn send_instruction<P: Serialize + Debug>(&mut self, inst: &SerializablePluginInstr<P>) -> Result<()>{
+        debug!("Awaiting lock to send data across tasks");
         let mut lock = self.socket.lock().await;
-
+        debug!("Lock acquired to send data across tasks");
         lock.send_plugin_instruction(inst).await
     }
 }
@@ -128,43 +109,54 @@ impl Drop for Process {
     }
 }
 
-async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<DeserializableCoreInstr>>) {
+async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<DeserializableCoreInstr>) {
+    let mut msg_buffer = Vec::new();
     loop {
-        let mut lock = match socket.try_lock() {
-            Ok(v) => v,
-            Err(e) => {
-                debug!("Could not get lock for socket: {}", e);
-                continue;
-            }
-        };
-        // Receive data from socket
-        let rx_data = lock.get_instruction().await;
-        match &rx_data {
-            Ok(v) => {
-                trace!("Sending result {:?}", v);
-            }
-            Err(e) => {
-                trace!("Sending error {}", e);
-            }
-        };
-        // Sent to parent thread
-        match tx.send(rx_data) {
-            Err(e) => {
-                error!("Could not send instruction {}", e);
-            }
-            _ => {
-                trace!("Send successful");
-            }
-        };
+        trace!("Attempting to aquire lock to SocketHandler");
+        match timeout(Duration::from_millis(16), socket.lock()).await {
+            Ok(mut lock) => {
+                // Receive data from socket
+                trace!("Getting data from SocketHandler");
+                match timeout(Duration::from_millis(16), lock.get_instruction()).await {
+                    Ok(v) => {
+                        match v {
+                            Ok(d) => msg_buffer.push(d),
+                            Err(e) => {
+                                warn!("Error obtaining next core instruction: {}", e);
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        trace!("Receive timed out");
+                    }
+                };
+            },
+            Err(_) => {}
+        }
+
+        if msg_buffer.len() > 0 {
+            let rx_data = msg_buffer.get(0).unwrap();
+
+            // Sent to parent thread
+            match timeout(Duration::from_millis(16), tx.send(rx_data.clone())).await {
+                Err(e) => {
+                    error!("Could not send instruction {}", e);
+                }
+                _ => {
+                    trace!("Send successful");
+                    msg_buffer.remove(0);
+                }
+            };   
+        }
         // TODO: Determine if the loop efficiently waits, and if so, remove this.
-        std::thread::sleep(std::time::Duration::from_millis(16));
+        sleep(Duration::from_millis(16));
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::{process_management::process::Process, core::socket_handler::SocketHandler};
-    use tokio_test::assert_ok;
+    use claims::assert_ok;
     use test_log::test;
 
     #[cfg(target_os = "windows")]
