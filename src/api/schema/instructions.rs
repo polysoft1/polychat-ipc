@@ -109,3 +109,25 @@ impl From<DeserializableCoreInstr> for SerializableCoreInstr<Box<RawValue>> {
         SerializableCoreInstr { instruction_type: value.instruction_type, payload: value.payload }
     }
 }
+
+impl From<DeserializablePluginInstr> for SerializablePluginInstr<Box<RawValue>> {
+    fn from(value: DeserializablePluginInstr) -> Self {
+        SerializablePluginInstr { instruction_type: value.instruction_type, payload: value.payload }
+    }
+}
+
+impl Clone for DeserializableCoreInstr {
+    fn clone(&self) -> Self {
+        DeserializableCoreInstr { instruction_type: self.instruction_type.clone(), payload: self.payload.clone() }
+    }
+}
+
+impl Clone for CoreInstructionType {
+    fn clone(&self) -> Self {
+        match self {
+            CoreInstructionType::Init => CoreInstructionType::Init,
+            CoreInstructionType::KeepaliveResponse => CoreInstructionType::KeepaliveResponse,
+            CoreInstructionType::AuthAccountResponse => CoreInstructionType::AuthAccountResponse
+        }
+    }
+}

@@ -6,13 +6,14 @@ use crate::{
 use std::{
     process::{Child, Command, Stdio},
     fmt::Debug, path::PathBuf,
-    sync::Arc
+    sync::Arc, time::Duration,
+    thread::sleep
 };
 use log::{warn, debug, error, trace};
 
 use anyhow::Result;
 use serde::Serialize;
-use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::{self, Receiver, Sender, error::TryRecvError}}};
+use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::{self, Receiver, Sender}}, time::timeout};
 
 #[derive(Debug)]
 pub struct Process {
@@ -20,7 +21,7 @@ pub struct Process {
     process_path: PathBuf,
     core_read_thread: JoinHandle<()>,
     socket: Arc<Mutex<SocketHandler>>,
-    rx: Receiver<Result<DeserializableCoreInstr>>
+    rx: Receiver<DeserializableCoreInstr>
 }
 
 impl Process {
@@ -52,19 +53,15 @@ impl Process {
 
     pub async fn get_next_instruction(&mut self) -> Result<Option<DeserializableCoreInstr>> {
         match self.rx.recv().await {
-            Some(v) => {
-                match v {
-                    Ok(d) => Ok(Some(d)),
-                    Err(e) => Err(e.into())
-                }
-            }
-            None => Ok(None),
+            Some(v) => Ok(Some(v)),
+            None => Ok(None)
         }
     }
 
     pub async fn send_instruction<P: Serialize + Debug>(&mut self, inst: &SerializablePluginInstr<P>) -> Result<()>{
+        debug!("Awaiting lock to send data across tasks");
         let mut lock = self.socket.lock().await;
-
+        debug!("Lock acquired to send data across tasks");
         lock.send_plugin_instruction(inst).await
     }
 }
@@ -110,41 +107,47 @@ impl Drop for Process {
     }
 }
 
-async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<DeserializableCoreInstr>>) {
+async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<DeserializableCoreInstr>) {
+    let mut msg_buffer = Vec::new();
     loop {
         trace!("Attempting to aquire lock to SocketHandler");
-        let mut lock = match socket.try_lock() {
-            Ok(v) => {
-                trace!("Have lock to SocketHandler");
-                v
+        match timeout(Duration::from_millis(16), socket.lock()).await {
+            Ok(mut lock) => {
+                // Receive data from socket
+                trace!("Getting data from SocketHandler");
+                match timeout(Duration::from_millis(16), lock.get_instruction()).await {
+                    Ok(v) => {
+                        match v {
+                            Ok(d) => msg_buffer.push(d),
+                            Err(e) => {
+                                warn!("Error obtaining next core instruction: {}", e);
+                            }
+                        }
+                    },
+                    Err(_) => {
+                        trace!("Receive timed out");
+                    }
+                };
             },
-            Err(e) => {
-                debug!("Could not get lock for socket: {}", e);
-                continue;
-            }
-        };
-        // Receive data from socket
-        trace!("Getting data from SocketHandler");
-        let rx_data = lock.get_instruction().await;
-        match &rx_data {
-            Ok(v) => {
-                trace!("Sending result {:?}", v);
-            }
-            Err(e) => {
-                trace!("Sending error {}", e);
-            }
-        };
-        // Sent to parent thread
-        match tx.send(rx_data).await {
-            Err(e) => {
-                error!("Could not send instruction {}", e);
-            }
-            _ => {
-                trace!("Send successful");
-            }
-        };
+            Err(_) => {}
+        }
+
+        if msg_buffer.len() > 0 {
+            let rx_data = msg_buffer.get(0).unwrap();
+
+            // Sent to parent thread
+            match timeout(Duration::from_millis(16), tx.send(rx_data.clone())).await {
+                Err(e) => {
+                    error!("Could not send instruction {}", e);
+                }
+                _ => {
+                    trace!("Send successful");
+                    msg_buffer.remove(0);
+                }
+            };   
+        }
         // TODO: Determine if the loop efficiently waits, and if so, remove this.
-        std::thread::sleep(std::time::Duration::from_millis(16));
+        sleep(Duration::from_millis(16));
     }
 }
 

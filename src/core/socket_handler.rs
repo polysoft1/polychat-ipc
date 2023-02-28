@@ -71,7 +71,7 @@ impl SocketHandler {
     pub async fn get_instruction(&mut self) -> Result<DeserializableCoreInstr> {
         self.update_owned_split().await?;
         let data = self.get_data().await?;
-        debug!("Converting");
+        debug!("Converting '{}' to CoreInstruction", &data);
         convert_str_to_struct::<DeserializableCoreInstr>(&data)
     }
 
@@ -123,8 +123,12 @@ impl SocketHandler {
      **/
     pub async fn send_plugin_instruction<P: Serialize + Debug>(&mut self, inst: &SerializablePluginInstr<P>) -> Result<()> {
         self.update_owned_split().await?;
+        debug!("Converting PluginInstr to String for IPC");
         let payload = match convert_struct_to_str(inst) {
-            Ok(s) => s,
+            Ok(s) => {
+                debug!("Successfully converted to string {}", s);
+                s
+            },
             Err(e) => {
                 warn!("Could not convert instruction to a String!");
                 return Err(e.into());
