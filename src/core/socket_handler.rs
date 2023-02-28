@@ -150,6 +150,14 @@ impl SocketHandler {
         let reader = self.read.as_mut().unwrap();
         return receive_line(reader).await;
     }
+
+    /**
+     * Returns a reference to the name/id of the pipe/socket.
+     * Remember that Windows uses pipes, and unix-like OSs use sockets.
+     */
+    pub fn get_socket_name(&self) -> &String {
+        &self.socket_name
+    }
 }
 
 impl Drop for SocketHandler {
@@ -178,7 +186,7 @@ impl Drop for SocketHandler {
 
 #[cfg(test)]
 mod test{
-    use crate::core::SocketHandler;
+    use crate::core::socket_handler::SocketHandler;
     use claims::assert_ok;
 
     #[tokio::test]

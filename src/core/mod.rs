@@ -1,5 +1,4 @@
 pub mod socket_handler;
-use socket_handler::*;
 
 use anyhow::Result;
 
@@ -18,7 +17,7 @@ impl Core {
      * A string describing the error on failure (more details can be found in logs, adjust `RUST_LOG` level)
      */
     pub fn new() -> Result<Core> {
-        let man = ProcessManager::new("polychat")?;
+        let man = ProcessManager::from_dir_str("polychat")?;
 
         Ok(Core {
             proc_manager: man
