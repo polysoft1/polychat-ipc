@@ -13,7 +13,7 @@ pub async fn run_plugin() {
     }
     let socket_id = args[1].clone();
 
-    let ipc_connection = SocketCommunicator::new(socket_id).await;
+    let ipc_connection = SocketCommunicator::new(&socket_id).await;
     match ipc_connection {
         Ok(mut connection) => {
             // TODO: Make it so the plugin passes this in instead of using example data.

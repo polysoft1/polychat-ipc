@@ -6,13 +6,13 @@ use crate::{
 use std::{
     process::{Child, Command, Stdio},
     fmt::Debug, path::PathBuf,
-    sync::{mpsc::{self, Receiver, Sender}, Arc}
+    sync::Arc
 };
 use log::{warn, debug, error, trace};
 
 use anyhow::Result;
 use serde::Serialize;
-use tokio::{task::JoinHandle, sync::Mutex};
+use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::{self, Receiver, Sender, error::TryRecvError}}};
 
 #[derive(Debug)]
 pub struct Process {
@@ -26,7 +26,7 @@ pub struct Process {
 impl Process {
     pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
         let path = PathBuf::from(path);
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel(100);
         let socket = Arc::new(Mutex::new(socket));
         let thrd_socket = socket.clone();
 
@@ -50,31 +50,15 @@ impl Process {
         }
     }
 
-    /**
-     * Returns if the next core instruction is available
-     * 
-     * # Returns
-     * A [bool] on if the next instruction is available
-     **/
-    pub fn poll_next_instruction(&self) -> Option<Result<DeserializableCoreInstr>> {
-        match self.rx.try_recv() {
-            Ok(v) => Some(v),
-            Err(e) => {
-                match e {
-                    mpsc::TryRecvError::Empty => None,
-                    mpsc::TryRecvError::Disconnected => {
-                        error!("Sending channel for {} disconnected, this should NEVER happen", self.process_path.display());
-                        Some(Err(e.into()))
-                    }
+    pub async fn get_next_instruction(&mut self) -> Result<Option<DeserializableCoreInstr>> {
+        match self.rx.recv().await {
+            Some(v) => {
+                match v {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(e.into())
                 }
             }
-        }
-    }
-
-    pub fn get_next_instruction(&mut self) -> Result<DeserializableCoreInstr> {
-        match self.rx.recv() {
-            Ok(v) => v,
-            Err(e) => Err(e.into())
+            None => Ok(None),
         }
     }
 
@@ -128,14 +112,19 @@ impl Drop for Process {
 
 async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result<DeserializableCoreInstr>>) {
     loop {
+        trace!("Attempting to aquire lock to SocketHandler");
         let mut lock = match socket.try_lock() {
-            Ok(v) => v,
+            Ok(v) => {
+                trace!("Have lock to SocketHandler");
+                v
+            },
             Err(e) => {
                 debug!("Could not get lock for socket: {}", e);
                 continue;
             }
         };
         // Receive data from socket
+        trace!("Getting data from SocketHandler");
         let rx_data = lock.get_instruction().await;
         match &rx_data {
             Ok(v) => {
@@ -146,7 +135,7 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result
             }
         };
         // Sent to parent thread
-        match tx.send(rx_data) {
+        match tx.send(rx_data).await {
             Err(e) => {
                 error!("Could not send instruction {}", e);
             }
@@ -162,7 +151,7 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Result
 #[cfg(test)]
 mod test {
     use crate::{process_management::process::Process, core::socket_handler::SocketHandler};
-    use tokio_test::assert_ok;
+    use claims::assert_ok;
     use test_log::test;
 
     #[cfg(target_os = "windows")]

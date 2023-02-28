@@ -5,7 +5,7 @@ use crate::{
     utils::socket::*
 };
 
-use log::{debug, error, warn};
+use log::{debug, error, warn, trace};
 use interprocess::local_socket::{
     NameTypeSupport, 
     tokio::{LocalSocketListener, LocalSocketStream, OwnedReadHalf, OwnedWriteHalf}
@@ -71,6 +71,7 @@ impl SocketHandler {
     pub async fn get_instruction(&mut self) -> Result<DeserializableCoreInstr> {
         self.update_owned_split().await?;
         let data = self.get_data().await?;
+        debug!("Converting");
         convert_str_to_struct::<DeserializableCoreInstr>(&data)
     }
 
@@ -82,10 +83,12 @@ impl SocketHandler {
      * A [Result] is returned, void if successful, [Error](std::error::Error) if unsuccessful
      **/
     async fn update_owned_split(&mut self) -> Result<()> {
+        trace!("Checking if read/write needs updating");
         if self.read.is_none() || self.write.is_none() {
-                let (read, write) = self.get_connection().await?.into_split();
-                self.read = Some(read);
-                self.write = Some(write);
+            debug!("Updating read/write associations");
+            let (read, write) = self.get_connection().await?.into_split();
+            self.read = Some(read);
+            self.write = Some(write);
         }
         Ok(())
     }
@@ -97,8 +100,12 @@ impl SocketHandler {
      * A [Result] is returned, with [LocalSocketStream] on success, and [Error](std::error::Error) on failure
      **/
     async fn get_connection(&self) -> Result<LocalSocketStream> {
+        debug!("Fetching new connection");
         match self.listener.accept().await {
-            Ok(c) => Ok(c),
+            Ok(c) => {
+                debug!("Found new connection");
+                Ok(c)
+            },
             Err(e) => {
                 warn!("Could not accept a socket connection: {}", e);
                 return Err(e.into());
@@ -135,6 +142,7 @@ impl SocketHandler {
      **/
     async fn get_data(&mut self) -> Result<String> {
         self.update_owned_split().await?;
+        debug!("Fetching data from socket");
         let reader = self.read.as_mut().unwrap();
         return receive_line(reader).await;
     }
@@ -167,7 +175,7 @@ impl Drop for SocketHandler {
 #[cfg(test)]
 mod test{
     use crate::core::SocketHandler;
-    use tokio_test::{assert_ok};
+    use claims::assert_ok;
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]

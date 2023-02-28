@@ -3,7 +3,7 @@ mod test {
     use rstest::*;
     use serde_json::value::RawValue;
 
-    use tokio_test::assert_ok;
+    use claims::assert_ok;
 
     use polychat_ipc::{
         core::socket_handler::SocketHandler,
@@ -23,9 +23,9 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn integration_test_core_instruction_sending(#[case] ins_type: CoreInstructionType){
         let socket_name = format!("int_test_{}", ins_type);
-        let mut handler = create_handler(socket_name.clone());
+        let mut handler = create_handler(&socket_name);
 
-        let mut comm = create_communicator(socket_name).await;
+        let mut comm = create_communicator(&socket_name).await;
         let instruct = SerializableCoreInstr {
             payload: create_core_payload(),
             instruction_type: ins_type
@@ -48,8 +48,8 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn integration_test_plugin_instruction_client(#[case] ins_type: PluginInstructionType) {
         let socket_name = format!("client_ins_{}", ins_type);
-        let mut server = create_handler(socket_name.clone());
-        let mut client = create_communicator(socket_name).await;
+        let mut server = create_handler(&socket_name);
+        let mut client = create_communicator(&socket_name).await;
 
         let instruct = SerializablePluginInstr {
             payload: create_core_payload(),
@@ -63,11 +63,11 @@ mod test {
         assert_eq!(instruct.payload.to_string(), recv.payload.to_string());
     }
 
-    fn create_handler(name: String) -> SocketHandler {
+    fn create_handler(name: &String) -> SocketHandler {
         assert_ok!(SocketHandler::new(name))
     }
 
-    async fn create_communicator(name: String) -> SocketCommunicator {
+    async fn create_communicator(name: &String) -> SocketCommunicator {
         assert_ok!(SocketCommunicator::new(name).await)
     }
 

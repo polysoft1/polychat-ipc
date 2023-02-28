@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use polychat_ipc::{core::socket_handler::SocketHandler, polychat_plugin_sdk_rust::socket::SocketCommunicator, api::schema::instructions::SerializableCoreInstr};
-    use tokio_test::assert_ok;
+    use claims::{assert_ok, assert_some};
     use polychat_ipc::{
         api::schema::instructions::{CoreInstructionType, PluginInstructionType},
         process_management::process::Process
@@ -30,7 +30,8 @@ mod test {
         };
 
         assert_ok!(comms.send_core_instruction(&core_payload).await);
-        let recv_data = assert_ok!(proc.get_next_instruction());
+        let recv_data = assert_some!(assert_ok!(proc.get_next_instruction().await));
+        
         assert_eq!(core_payload, recv_data.into());
     }
 
@@ -39,7 +40,7 @@ mod test {
     }
 
     async fn create_socket_client(name: &String) -> SocketCommunicator {
-        assert_ok!(SocketCommunicator::new(String::from(name)).await)
+        assert_ok!(SocketCommunicator::new(name).await)
     }
     
     fn create_core_payload() -> Box<RawValue> {

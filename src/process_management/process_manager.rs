@@ -155,7 +155,7 @@ fn expected_file(entry: &DirEntry) -> bool {
 #[cfg(test)]
 mod test{
     use crate::process_management::process_manager::ProcessManager;
-    use tokio_test::{assert_ok, assert_err};
+    use claims::{assert_ok, assert_err};
 
     #[test]
     #[ignore]
