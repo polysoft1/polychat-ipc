@@ -25,12 +25,14 @@ pub struct Process {
 
 impl Process {
     pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
+        let socket_name_arg = socket.socket_name.clone();
         let path = PathBuf::from(path);
         let (tx, rx) = mpsc::channel();
         let socket = Arc::new(Mutex::new(socket));
         let thrd_socket = socket.clone();
+        debug!("Starting process at {:?} with socket name argument {}", &path, &socket_name_arg);
 
-        match Command::new(&path).stdout(Stdio::null()).spawn() {
+        match Command::new(&path).arg(socket_name_arg).stdout(Stdio::null()).spawn() {
             Ok(child) => {
                 debug!("Successfully started process {:?} with PID {}", path, child.id());
                 Ok(Process {

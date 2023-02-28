@@ -17,7 +17,7 @@ use anyhow::Result;
 
 #[derive(Debug)]
 pub struct SocketHandler {
-    socket_name: String,
+    pub socket_name: String,
     listener: LocalSocketListener,
     read: Option<OwnedReadHalf>,
     write: Option<OwnedWriteHalf>
@@ -166,7 +166,7 @@ impl Drop for SocketHandler {
 
 #[cfg(test)]
 mod test{
-    use crate::core::SocketHandler;
+    use crate::core::socket_handler::SocketHandler;
     use tokio_test::{assert_ok};
 
     #[tokio::test]
