@@ -17,7 +17,7 @@ use anyhow::Result;
 
 #[derive(Debug)]
 pub struct SocketHandler {
-    pub socket_name: String,
+    socket_name: String,
     listener: LocalSocketListener,
     read: Option<OwnedReadHalf>,
     write: Option<OwnedWriteHalf>
@@ -149,6 +149,14 @@ impl SocketHandler {
         debug!("Fetching data from socket");
         let reader = self.read.as_mut().unwrap();
         return receive_line(reader).await;
+    }
+
+    /**
+     * Returns a reference to the name/id of the pipe/socket.
+     * Remember that Windows uses pipes, and unix-like OSs use sockets.
+     */
+    pub fn get_socket_name(&self) -> &String {
+        &self.socket_name
     }
 }
 

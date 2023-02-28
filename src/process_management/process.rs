@@ -26,7 +26,7 @@ pub struct Process {
 
 impl Process {
     pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
-        let socket_name_arg = socket.socket_name.clone();
+        let socket_name_arg = socket.get_socket_name().clone();
         let path = PathBuf::from(path);
         let (tx, rx) = mpsc::channel(100);
         let socket = Arc::new(Mutex::new(socket));
