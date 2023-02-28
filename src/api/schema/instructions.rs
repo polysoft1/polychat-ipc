@@ -103,3 +103,9 @@ impl<P: Serialize + Debug> PartialEq for SerializablePluginInstr<P> {
         ins_equal && payloads_equal
     }
 }
+
+impl From<DeserializableCoreInstr> for SerializableCoreInstr<Box<RawValue>> {
+    fn from(value: DeserializableCoreInstr) -> Self {
+        SerializableCoreInstr { instruction_type: value.instruction_type, payload: value.payload }
+    }
+}
