@@ -38,24 +38,23 @@ pub struct SerializablePluginInstr<P: Serialize + Debug> {
 }
 /// An instruction that was sent from plugin to core
 #[derive(Deserialize, Debug)]
-pub struct DeserializableCoreInstr<'a> {
+pub struct DeserializableCoreInstr {
     pub instruction_type: CoreInstructionType,
     // If further optimization is desired, you can use: #[serde(borrow)]
     // But this comes at the cost of needing to ensure the String that is used
     // to create this struct has a lifetime that matches or exceeds this.
-    #[serde(borrow)]
-    pub payload: &'a RawValue,
+    pub payload: Box<RawValue>,
 }
 
 /// An instruction that was sent from core to plugin
 #[derive(Deserialize, Debug)]
-pub struct DeserializablePluginInstr<'a> {
+pub struct DeserializablePluginInstr {
     pub instruction_type: PluginInstructionType,
     // If further optimization is desired, you can use: #[serde(borrow)]
     // But this comes at the cost of needing to ensure the String that is used
     // to create this struct has a lifetime that matches or exceeds this.
-    #[serde(borrow)]
-    pub payload: &'a RawValue,
+    // Can also use &'a instead of Box
+    pub payload: Box<RawValue>,
 }
 
 impl Display for CoreInstructionType {
@@ -102,5 +101,33 @@ impl<P: Serialize + Debug> PartialEq for SerializablePluginInstr<P> {
         let ins_equal = self.instruction_type == other.instruction_type;
 
         ins_equal && payloads_equal
+    }
+}
+
+impl From<DeserializableCoreInstr> for SerializableCoreInstr<Box<RawValue>> {
+    fn from(value: DeserializableCoreInstr) -> Self {
+        SerializableCoreInstr { instruction_type: value.instruction_type, payload: value.payload }
+    }
+}
+
+impl From<DeserializablePluginInstr> for SerializablePluginInstr<Box<RawValue>> {
+    fn from(value: DeserializablePluginInstr) -> Self {
+        SerializablePluginInstr { instruction_type: value.instruction_type, payload: value.payload }
+    }
+}
+
+impl Clone for DeserializableCoreInstr {
+    fn clone(&self) -> Self {
+        DeserializableCoreInstr { instruction_type: self.instruction_type.clone(), payload: self.payload.clone() }
+    }
+}
+
+impl Clone for CoreInstructionType {
+    fn clone(&self) -> Self {
+        match self {
+            CoreInstructionType::Init => CoreInstructionType::Init,
+            CoreInstructionType::KeepaliveResponse => CoreInstructionType::KeepaliveResponse,
+            CoreInstructionType::AuthAccountResponse => CoreInstructionType::AuthAccountResponse
+        }
     }
 }

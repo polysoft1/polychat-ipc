@@ -1,11 +1,11 @@
 pub mod socket_handler;
 
-use socket_handler::SocketHandler;
-
 use anyhow::Result;
 
+use crate::process_management::process_manager::ProcessManager;
+
 pub struct Core {
-    socket_hadler: SocketHandler
+    proc_manager: ProcessManager
 }
 
 impl Core {
@@ -17,19 +17,10 @@ impl Core {
      * A string describing the error on failure (more details can be found in logs, adjust `RUST_LOG` level)
      */
     pub fn new() -> Result<Core> {
-        let handler = SocketHandler::new("polychat")?;
+        let man = ProcessManager::from_dir_str("polychat")?;
 
         Ok(Core {
-            socket_hadler: handler
+            proc_manager: man
         })
-    }
-
-    /**
-     * Starts the main loop of Core, allowing messages to be received from plugins
-     * 
-     * **THIS IS AN INFINITE LOOP**
-     */
-    pub async fn run(&self) {
-        self.socket_hadler.run().await;
     }
 }

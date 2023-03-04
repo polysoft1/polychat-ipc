@@ -1,15 +1,19 @@
 use std::{
     ffi::OsStr,
-    path::PathBuf, str::FromStr
+    path::{PathBuf, Path}, str::FromStr
 };
 use log::{error, warn, debug};
 use walkdir::{DirEntry, WalkDir};
 use anyhow::Result;
+use rand::{
+    distributions::Alphanumeric,
+    thread_rng, Rng
+};
 
-use crate::process_management::{
+use crate::{process_management::{
     process::Process,
     error::ProcessManagerError
-};
+}, core::socket_handler::SocketHandler};
 
 #[cfg(target_os = "windows")]
 const EXEC_EXTENSION: &str = "exe";
@@ -18,16 +22,30 @@ const EXEC_EXTENSION: &str = "";
 
 #[derive(Debug)]
 pub struct ProcessManager {
-    process_list: Vec<Process>,
+    dir: Option<PathBuf>,
+    loaded_processes: Vec<Process>,
 }
 
 impl ProcessManager {
     /**
+     * Creates a new ProcessManager.
+     * Does not attempt to load any processes from executables.
+     * 
+     * You can still load executables afterwards with load_executable.
+     */
+    pub fn new() -> ProcessManager {
+        ProcessManager {
+            dir: None,
+            loaded_processes: vec![],
+        }
+    }
+
+    /**
      * Creates a new ProcessManager with a string slice
      * 
-     * # Arguments
+     * # Required Arguments
      * ## path
-     * The path to a directory containing a set of directories which contain executables
+     * The absolute path to a directory containing a set of directories which contain executables
      *
      * # Returns
      * A ProcessManager on success
@@ -38,14 +56,14 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn new(path: &str) -> Result<ProcessManager> {
-        ProcessManager::from_path(PathBuf::from_str(path)?)
+    pub fn from_dir_str(path: &str) -> Result<ProcessManager> {
+        ProcessManager::from_dir_path(PathBuf::from_str(path)?)
     }
 
     /**
      * Creates a new ProcessManager from a Path
      * 
-     * # Arguments
+     * # Required Arguments
      * ## dir
      * The absolute path to a directory containing a set of directories which contain executables
      * 
@@ -58,11 +76,28 @@ impl ProcessManager {
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn from_path(dir: PathBuf) -> Result<ProcessManager> {
-        check_directory(dir.clone())?;
+    pub fn from_dir_path(dir: PathBuf) -> Result<ProcessManager> {
+        let mut manager = Self::new();
+        manager.dir = Some(dir);
+        manager.load_processes()?;
+        Ok(manager)
+    }
+
+    pub fn load_processes(&mut self) -> Result<()> {
+        let dir: PathBuf;
+        match self.dir.clone() {
+            None => {
+                let err = ProcessManagerError::NoPath;
+                error!("{}", err);
+                return Err(anyhow::Error::new(err));
+            },
+            Some(manager_dir) => {
+                check_directory(manager_dir.clone())?;
+                dir = manager_dir;
+            }
+        }
 
         let dir_walk = WalkDir::new(dir).max_depth(2).min_depth(2).follow_links(false);
-        let mut exec_vec: Vec<Process> = Vec::new();
 
         for entry in dir_walk.into_iter().filter_entry(|e| expected_file(e)) {
             let file = match entry {
@@ -72,22 +107,28 @@ impl ProcessManager {
                     continue;
                 }
             };
-            
-            debug!("Found executable: {}", file.path().display());
-            let proc = Process::new(file.path());
 
-            match proc {
-                Ok(p) => exec_vec.insert(0, p),
-                Err(e) => {
-                    warn!("{}", e);
-                    continue;
-                }
-            };
+            debug!("Found executable: {}", file.path().display());
+            self.load_process(file.path())?;
         }
 
-        Ok(ProcessManager {
-            process_list: exec_vec
-        })
+        Ok(())
+    }
+
+    pub fn load_process(&mut self, path: &Path) -> Result<()> {
+        let socket_name: String = generate_random_ipc_id();
+        let socket = SocketHandler::new(socket_name)?;
+        
+        let proc = Process::new(path, socket);
+
+        match proc {
+            Ok(p) => self.loaded_processes.insert(0, p),
+            Err(e) => {
+                warn!("{}", e);
+                return Err(e);
+            }
+        };
+        Ok(())
     }
 }
 
@@ -145,24 +186,24 @@ fn expected_file(entry: &DirEntry) -> bool {
     return is_file && extension == EXEC_EXTENSION;
 }
 
+fn generate_random_ipc_id() -> String {
+    thread_rng().sample_iter(&Alphanumeric).take(7).map(char::from).collect()
+}
+
 #[cfg(test)]
 mod test{
     use crate::process_management::process_manager::ProcessManager;
-    use tokio_test::{assert_ok, assert_err};
+
+    // The Ok tests will be done in the integration tests with a plugin binary.
+    use claims::assert_err;
 
     #[test]
-    #[ignore]
-    fn test_loading_from_dir() {
-        assert_ok!(ProcessManager::new("C:\\Users\\Admin\\Documents\\polychat-plugins"));
-    }
-
-    #[test]
-    fn test_loading_from_realitve_path() {
-        assert_err!(ProcessManager::new("./plugins"));
+    fn test_loading_from_relative_path() {
+        assert_err!(ProcessManager::from_dir_str("./plugins"));
     }
 
     #[test]
     fn test_loading_from_file() {
-        assert_err!(ProcessManager::new("/etc/passwd"));
+        assert_err!(ProcessManager::from_dir_str("/etc/passwd"));
     }
 }
