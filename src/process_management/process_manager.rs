@@ -3,6 +3,7 @@ use std::{
     path::{PathBuf, Path}, str::FromStr
 };
 use log::{error, warn, debug};
+use scopeguard::defer;
 use walkdir::{DirEntry, WalkDir};
 use anyhow::Result;
 use rand::{
@@ -13,7 +14,7 @@ use rand::{
 use crate::{process_management::{
     process::Process,
     error::ProcessManagerError
-}, core::socket_handler::SocketHandler};
+}, core::{socket_handler::SocketHandler, ui_interface::{ui_trait::GUI, load_status::LoadStatus}}};
 
 #[cfg(target_os = "windows")]
 const EXEC_EXTENSION: &str = "exe";
@@ -51,10 +52,6 @@ impl ProcessManager {
      * A ProcessManager on success
      * 
      * A string slice describing the error on failure (check logs for more details)
-     * 
-     * # Platform Dependent Behavior
-     * - Windows: Expects `.exe` to be the extension of the executables
-     * - Everything Else: Expects no extension on the executables
      */
     pub fn from_dir_str(path: &str) -> Result<ProcessManager> {
         ProcessManager::from_dir_path(PathBuf::from_str(path)?)
@@ -71,19 +68,37 @@ impl ProcessManager {
      * A ProcessManager on success
      * 
      * A string slice describing the error on failure (check logs for more details)
+     */
+    pub fn from_dir_path(dir: PathBuf) -> Result<ProcessManager> {
+        let mut manager = Self::new();
+        manager.dir = Some(dir);
+        Ok(manager)
+    }
+
+    pub fn get_dir(&self) -> Option<PathBuf> {
+        self.dir.clone()
+    }
+
+    /**
+     * Loads the processes in the previously set directory.
+     * Calls the GUI for each plugin loaded and for each failure.
+     * 
+     * If no dir is set, returns ProcessManagerError::NoPath Result
      * 
      * # Platform Dependent Behavior
      * - Windows: Expects `.exe` to be the extension of the executables
      * - Everything Else: Expects no extension on the executables
      */
-    pub fn from_dir_path(dir: PathBuf) -> Result<ProcessManager> {
-        let mut manager = Self::new();
-        manager.dir = Some(dir);
-        manager.load_processes()?;
-        Ok(manager)
-    }
+    pub fn load_processes(&mut self, ui: Option<&dyn GUI>) -> Result<()> {
+        if let Some(ui) = ui {
+            ui.on_plugin_loaded_status_change(LoadStatus::Started)
+        }
+        defer! { // Run finished once this function finishes.
+            if let Some(ui) = ui {
+                ui.on_plugin_loaded_status_change(LoadStatus::Finished)
+            }
+        }
 
-    pub fn load_processes(&mut self) -> Result<()> {
         let dir: PathBuf;
         match self.dir.clone() {
             None => {
@@ -96,6 +111,8 @@ impl ProcessManager {
                 dir = manager_dir;
             }
         }
+        println!("Loading plugins from dir {:?}", dir);
+        debug!("Loading plugins from dir {:?}", dir);
 
         let dir_walk = WalkDir::new(dir).max_depth(2).min_depth(2).follow_links(false);
 
@@ -103,18 +120,32 @@ impl ProcessManager {
             let file = match entry {
                 Ok(e) => e,
                 Err(e) => {
+                    // Should this error get sent to the GUI?
                     warn!("Could not read directory entry: {}", e);
                     continue;
                 }
             };
 
             debug!("Found executable: {}", file.path().display());
-            self.load_process(file.path())?;
+            let load_process_result = self.load_process(file.path());
+            match load_process_result {
+                Ok(_) => {
+                    if let Some(ui) = ui {
+                        ui.on_plugin_loaded(file.file_name().to_string_lossy().into_owned());
+                    }
+                },
+                Err(e) => {
+                    if let Some(ui) = ui {
+                        ui.on_plugin_load_failure(e.to_string())
+                    }
+                    return Err(e);
+                }
+            }
         }
-
         Ok(())
     }
 
+    // Loads the process, and returns the filename
     pub fn load_process(&mut self, path: &Path) -> Result<()> {
         let socket_name: String = generate_random_ipc_id();
         let socket = SocketHandler::new(socket_name)?;
@@ -122,7 +153,9 @@ impl ProcessManager {
         let proc = Process::new(path, socket);
 
         match proc {
-            Ok(p) => self.loaded_processes.insert(0, p),
+            Ok(p) => {
+                self.loaded_processes.push(p);
+            },
             Err(e) => {
                 warn!("{}", e);
                 return Err(e);

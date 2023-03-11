@@ -21,6 +21,8 @@ futures = "0.3.25"
 anyhow = "1.0.69"
 thiserror = "1.0.38"
 rand = "0.8.5"
+scopeguard = "1.1.0"
+dirs = "4.0.0"
 
 [dev-dependencies]
 test-log = "0.2.11"
