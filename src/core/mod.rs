@@ -70,6 +70,7 @@ impl Core {
 
     pub fn run(&mut self, ui: &dyn GUI) -> Result<()> {
         ui.on_core_pre_init();
+        self.proc_manager.prepare_dir()?;
         let load_process_result = self.proc_manager.load_processes(Some(ui));
         if load_process_result.is_err() {
             ui.on_plugin_load_failure(load_process_result.unwrap_err().to_string())

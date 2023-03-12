@@ -1,6 +1,6 @@
 use std::{
     ffi::OsStr,
-    path::{PathBuf, Path}, str::FromStr
+    path::{PathBuf, Path}, str::FromStr, fs
 };
 use log::{error, warn, debug};
 use scopeguard::defer;
@@ -77,6 +77,25 @@ impl ProcessManager {
 
     pub fn get_dir(&self) -> Option<PathBuf> {
         self.dir.clone()
+    }
+
+    /**
+     * If the dir is set, it ensures that it contains the necessary folder.
+     * Will also initialize parent directories if necessary.
+     * 
+     * Returns ProcessManagerError::NoPath error if no path is set.
+     */
+    pub fn prepare_dir(&self) -> Result<()> {
+        match self.dir.clone() {
+            None => {
+                let err = ProcessManagerError::NoPath;
+                error!("{}", err);
+                Err(anyhow::Error::new(err))
+            },
+            Some(dir) => {
+                Ok(fs::create_dir_all(dir)?)
+            }
+        }
     }
 
     /**
