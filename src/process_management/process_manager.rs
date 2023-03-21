@@ -70,6 +70,9 @@ impl ProcessManager {
      * A string slice describing the error on failure (check logs for more details)
      */
     pub fn from_dir_path(dir: PathBuf) -> Result<ProcessManager> {
+        // Validate
+        check_directory(dir.clone())?;
+        // Create manager
         let mut manager = Self::new();
         manager.dir = Some(dir);
         Ok(manager)
