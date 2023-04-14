@@ -1,4 +1,3 @@
-pub mod socket_handler;
 pub mod ui_interface;
 
 use std::{path::PathBuf, env};
@@ -76,6 +75,7 @@ impl Core {
             ui.on_plugin_load_failure(load_process_result.unwrap_err().to_string())
         }
         ui.on_core_post_init(self.proc_manager.get_dir());
+        // TODO: Run loop for receiving from plugins.
         Ok(())
     }
 }

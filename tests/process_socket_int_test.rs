@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test {
-    use polychat_ipc::{core::socket_handler::SocketHandler, polychat_plugin_sdk_rust::socket::SocketCommunicator, api::schema::instructions::{SerializableCoreInstr, SerializablePluginInstr}};
+    use polychat_ipc::{process_management::ipc_server::IPCServer, polychat_plugin_sdk_rust::client::IPCClient, api::schema::instructions::{SerializableCoreInstr, SerializablePluginInstr}};
     use claims::{assert_ok, assert_some};
     use polychat_ipc::{
         api::schema::instructions::{CoreInstructionType, PluginInstructionType},
@@ -24,9 +24,11 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn test_recv_core_inst(#[case] ins_type: CoreInstructionType ) {
         let name = format!("polychat_process_recv_core_inst_{}", ins_type);
+        // Create the required shared queue
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
         // Start an executable that won't crash.
         // The connection to the socket will be tested separately from process execution in this test.
-        let mut proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket_server(&name)));
+        let _proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket_server(&name), tx));
         // Run the code that plugins usually run to connect to the socket server.
         let mut comms = create_socket_client(&name).await;
 
@@ -38,7 +40,7 @@ mod test {
         };
 
         assert_ok!(comms.send_core_instruction(&core_payload).await);
-        let recv_data = assert_some!(assert_ok!(proc.get_next_instruction().await));
+        let recv_data = assert_some!(rx.recv().await);
         
         // Ensure the data was sent correctly.
         assert_eq!(core_payload, recv_data.into());
@@ -50,9 +52,11 @@ mod test {
     #[test_log::test(tokio::test)]
     async fn test_send_plugin_inst(#[case] ins_type: PluginInstructionType) {
         let name = format!("polychat_process_send_plugin_inst_{}", ins_type);
+        // Create the required shared queue
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
         // Start an executable that won't crash.
         // The connection to the socket will be tested separately from process execution in this test.
-        let mut proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket_server(&name)));
+        let mut proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket_server(&name), tx));
         // Run the code that plugins usually run to connect to the socket server.
         let mut comms = create_socket_client(&name).await;
 
@@ -63,7 +67,8 @@ mod test {
             payload: create_core_payload()
         };
         assert_ok!(comms.send_core_instruction(&core_payload).await);
-        assert_ok!(proc.get_next_instruction().await);
+        rx.recv().await; // Receive it back.
+
 
         // Now the other way. Send the case's instruction type from the core's code (proc)
         // to the plugin's code (comms).
@@ -79,13 +84,13 @@ mod test {
     }
 
     // Used for creating a core socket server
-    pub fn create_socket_server(name: &String) -> SocketHandler {
-        assert_ok!(SocketHandler::new(name))
+    pub fn create_socket_server(name: &String) -> IPCServer {
+        assert_ok!(IPCServer::new(name))
     }
 
     // Used for creating the socket client, which is plugin SDK code.
-    async fn create_socket_client(name: &String) -> SocketCommunicator {
-        assert_ok!(SocketCommunicator::new(name).await)
+    async fn create_socket_client(name: &String) -> IPCClient {
+        assert_ok!(IPCClient::new(name).await)
     }
     
     /// Generates an empty RawValue for use in testing everything but payload transfer.

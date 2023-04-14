@@ -15,15 +15,15 @@ use crate::{
 use anyhow::Result;
 
 #[derive(Debug)]
-pub struct SocketCommunicator {
+pub struct IPCClient {
     reader: OwnedReadHalf,
     writer: OwnedWriteHalf
 }
 
 /// The component that handles connecting to the IPC socket or pipe, as well as
 /// serializing and deserializing the instructions sent each way.
-impl SocketCommunicator {
-    pub async fn new(name: &String) -> Result<SocketCommunicator> {
+impl IPCClient {
+    pub async fn new(name: &String) -> Result<IPCClient> {
         let stream = match LocalSocketStream::connect(get_socket_name(name)).await {
             Ok(s) => s,
             Err(e) => {
@@ -31,7 +31,7 @@ impl SocketCommunicator {
             }
         };
         let (reader, writer) = stream.into_split();
-        Ok(SocketCommunicator { 
+        Ok(IPCClient { 
             reader,
             writer
         })

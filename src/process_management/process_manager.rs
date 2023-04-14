@@ -1,9 +1,10 @@
 use std::{
     ffi::OsStr,
-    path::{PathBuf, Path}, str::FromStr, fs
+    path::{PathBuf, Path}, str::FromStr, fs,
 };
 use log::{error, warn, debug};
 use scopeguard::defer;
+use tokio::sync::mpsc::{self, Receiver, Sender};
 use walkdir::{DirEntry, WalkDir};
 use anyhow::Result;
 use rand::{
@@ -13,8 +14,9 @@ use rand::{
 
 use crate::{process_management::{
     process::Process,
-    error::ProcessManagerError
-}, core::{socket_handler::SocketHandler, ui_interface::{ui_trait::GUI, load_status::LoadStatus}}};
+    error::ProcessManagerError,
+    ipc_server::IPCServer,
+}, core::{ui_interface::{ui_trait::GUI, load_status::LoadStatus}}, api::schema::instructions::DeserializableCoreInstr};
 
 #[cfg(target_os = "windows")]
 const EXEC_EXTENSION: &str = "exe";
@@ -25,6 +27,8 @@ const EXEC_EXTENSION: &str = "";
 pub struct ProcessManager {
     dir: Option<PathBuf>,
     loaded_processes: Vec<Process>,
+    shared_queue_rx: Receiver<DeserializableCoreInstr>,
+    shared_queue_tx: Sender<DeserializableCoreInstr>,
 }
 
 impl ProcessManager {
@@ -35,9 +39,12 @@ impl ProcessManager {
      * You can still load executables afterwards with load_executable.
      */
     pub fn new() -> ProcessManager {
+        let (tx, rx) = mpsc::channel(100);
         ProcessManager {
             dir: None,
             loaded_processes: vec![],
+            shared_queue_rx: rx,
+            shared_queue_tx: tx,
         }
     }
 
@@ -113,11 +120,11 @@ impl ProcessManager {
      */
     pub fn load_processes(&mut self, ui: Option<&dyn GUI>) -> Result<()> {
         if let Some(ui) = ui {
-            ui.on_plugin_loaded_status_change(LoadStatus::Started)
+            ui.on_plugins_loaded_status_change(LoadStatus::Started)
         }
         defer! { // Run finished once this function finishes.
             if let Some(ui) = ui {
-                ui.on_plugin_loaded_status_change(LoadStatus::Finished)
+                ui.on_plugins_loaded_status_change(LoadStatus::Finished)
             }
         }
 
@@ -170,9 +177,9 @@ impl ProcessManager {
     // Loads the process, and returns the filename
     pub fn load_process(&mut self, path: &Path) -> Result<()> {
         let socket_name: String = generate_random_ipc_id();
-        let socket = SocketHandler::new(socket_name)?;
+        let socket = IPCServer::new(socket_name)?;
         
-        let proc = Process::new(path, socket);
+        let proc = Process::new(path, socket, self.shared_queue_tx.clone());
 
         match proc {
             Ok(p) => {

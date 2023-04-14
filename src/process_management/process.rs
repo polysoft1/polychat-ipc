@@ -1,5 +1,5 @@
 use crate::{
-    core::socket_handler::SocketHandler,
+    process_management::ipc_server::IPCServer,
     api::schema::instructions::{DeserializableCoreInstr, SerializablePluginInstr}
 };
 
@@ -13,22 +13,20 @@ use log::{warn, debug, error, trace};
 
 use anyhow::Result;
 use serde::Serialize;
-use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::{self, Receiver, Sender}}, time::timeout};
+use tokio::{task::JoinHandle, sync::{ Mutex, mpsc::Sender}, time::timeout};
 
 #[derive(Debug)]
 pub struct Process {
     child: Child,
     process_path: PathBuf,
     core_read_thread: JoinHandle<()>,
-    socket: Arc<Mutex<SocketHandler>>,
-    rx: Receiver<DeserializableCoreInstr>
+    socket: Arc<Mutex<IPCServer>>,
 }
 
 impl Process {
-    pub fn new<T>(path: T, socket: SocketHandler) -> Result<Process> where PathBuf: From<T> {
+    pub fn new<T>(path: T, socket: IPCServer, shared_queue_tx: Sender<DeserializableCoreInstr>) -> Result<Process> where PathBuf: From<T> {
         let socket_name_arg = socket.get_socket_name().clone();
         let path = PathBuf::from(path);
-        let (tx, rx) = mpsc::channel(100);
         let socket = Arc::new(Mutex::new(socket));
         let thrd_socket = socket.clone();
         debug!("Starting process at {:?} with socket name argument {}", &path, &socket_name_arg);
@@ -39,10 +37,9 @@ impl Process {
                 Ok(Process {
                     child,
                     core_read_thread: tokio::spawn(async move {
-                        fetch_message_loop(thrd_socket, tx).await;
+                        fetch_message_loop(thrd_socket, shared_queue_tx).await;
                     }),
                     process_path: path,
-                    rx,
                     socket
                 })
             },
@@ -50,13 +47,6 @@ impl Process {
                 debug!("Could not load process from path {:?}: {}", path, e);
                 Err(e.into())
             }
-        }
-    }
-
-    pub async fn get_next_instruction(&mut self) -> Result<Option<DeserializableCoreInstr>> {
-        match self.rx.recv().await {
-            Some(v) => Ok(Some(v)),
-            None => Ok(None)
         }
     }
 
@@ -109,17 +99,19 @@ impl Drop for Process {
     }
 }
 
-async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<DeserializableCoreInstr>) {
+async fn fetch_message_loop(socket: Arc<Mutex<IPCServer>>, tx: Sender<DeserializableCoreInstr>) {
+    // Temporarily stores messages that were received by the core into a buffer, then sends them to the tx Sender.
     let mut msg_buffer = Vec::new();
     loop {
         trace!("Attempting to aquire lock to SocketHandler");
         match timeout(Duration::from_millis(16), socket.lock()).await {
             Ok(mut lock) => {
-                // Receive data from socket
+                // Receive data from socket. This is data from the plugin to the core.
                 trace!("Getting data from SocketHandler");
                 match timeout(Duration::from_millis(16), lock.get_instruction()).await {
                     Ok(v) => {
                         match v {
+                            // Add the instruction to the buffer so it can be processed later.
                             Ok(d) => msg_buffer.push(d),
                             Err(e) => {
                                 warn!("Error obtaining next core instruction: {}", e);
@@ -155,9 +147,10 @@ async fn fetch_message_loop(socket: Arc<Mutex<SocketHandler>>, tx: Sender<Deseri
 
 #[cfg(test)]
 mod test {
-    use crate::{process_management::process::Process, core::socket_handler::SocketHandler};
+    use crate::process_management::{process::Process, ipc_server::IPCServer};
     use claims::assert_ok;
     use test_log::test;
+    use tokio::sync::mpsc;
 
     #[cfg(target_os = "windows")]
     const TEST_PROGRAM: &str = "calc.exe";
@@ -166,18 +159,20 @@ mod test {
 
     #[test(tokio::test)]
     async fn test_loading_process() {
-        assert_ok!(Process::new(TEST_PROGRAM, create_socket("polychat-loading-test")));
+        let (tx, _rx) = mpsc::channel(100);
+        assert_ok!(Process::new(TEST_PROGRAM, create_socket("polychat-loading-test"), tx));
     }
 
     #[test(tokio::test)]
     async fn test_dropping_process() {
-        let proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket("polychat-drop-test")));
+        let (tx, _rx) = mpsc::channel(100);
+        let proc = assert_ok!(Process::new(TEST_PROGRAM, create_socket("polychat-drop-test"), tx));
 
         drop(proc);
     }
 
-    fn create_socket(name: &str) -> SocketHandler {
-        let socket = SocketHandler::new(name);
+    fn create_socket(name: &str) -> IPCServer {
+        let socket = IPCServer::new(name);
         assert_ok!(socket, "Could not initialize SocketHandler")
     }
 }

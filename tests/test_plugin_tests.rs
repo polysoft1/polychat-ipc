@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod test {
-    use polychat_ipc::{core::socket_handler::SocketHandler, api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}, process_management::process_manager::ProcessManager};
+    use polychat_ipc::{api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}, process_management::{process_manager::ProcessManager, ipc_server::IPCServer}};
     use rstest::*;
     use claims::assert_ok;
     use std::process::Command;
@@ -24,7 +24,7 @@ mod test {
         // Start the component from core that starts the IPC connections.
         debug!("Starting socket");
         let socket_name = format!("test_plugin_test_init");
-        let mut handler = create_handler(socket_name.clone());
+        let mut handler = create_ipc_server(socket_name.clone());
         
         // Start the plugin
         // Does not use ProcessManager in order to isolate this test to the plugin itself.
@@ -45,8 +45,8 @@ mod test {
         debug!("Done");
     }
 
-    fn create_handler(name: String) -> SocketHandler {
-        assert_ok!(SocketHandler::new(name))
+    fn create_ipc_server(name: String) -> IPCServer {
+        assert_ok!(IPCServer::new(name))
     }
 
     /**

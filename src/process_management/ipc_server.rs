@@ -15,8 +15,11 @@ use std::{path::Path, fs, fmt::Debug};
 
 use anyhow::Result;
 
+/**
+ * IPCServer listens on a pipe or socket for bidirectional IPC communication.
+ */
 #[derive(Debug)]
-pub struct SocketHandler {
+pub struct IPCServer {
     socket_name: String,
     listener: LocalSocketListener,
     read: Option<OwnedReadHalf>,
@@ -24,8 +27,8 @@ pub struct SocketHandler {
 }
 
 
-impl SocketHandler {
-    /** Creates a new SocketHandler and listens either on a namespaced local socket
+impl IPCServer {
+    /** Creates a new IPCServer and listens either on a namespaced local socket/pipe
      * or a file path socket.
      * 
      * # Arguments
@@ -33,7 +36,7 @@ impl SocketHandler {
      * The name to be used for the filepath or namespace
      * 
      * # Returns
-     * A [Result] is returned, if successful the SocketHandler is provided
+     * A [Result] is returned, if successful the IPCServer is provided
      * otherwise, an [Error](std::error::Error) is returned containing the error.
      * 
      * # Platform-Dependent Behavior
@@ -52,7 +55,7 @@ impl SocketHandler {
             }
         };
         debug!("Server started at {}", name);
-        Ok(SocketHandler{
+        Ok(IPCServer{
             listener,
             socket_name: name,
             read: None,
@@ -160,7 +163,7 @@ impl SocketHandler {
     }
 }
 
-impl Drop for SocketHandler {
+impl Drop for IPCServer {
     fn drop(&mut self) {
         debug!("Attempting to close Socket {}", self.socket_name);
         use NameTypeSupport::*;
@@ -186,18 +189,18 @@ impl Drop for SocketHandler {
 
 #[cfg(test)]
 mod test{
-    use crate::core::socket_handler::SocketHandler;
+    use crate::process_management::ipc_server::IPCServer;
     use claims::assert_ok;
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn create_socket_succeeds() {
-        assert_ok!(SocketHandler::new("polychat"));
+        assert_ok!(IPCServer::new("polychat"));
     }
 
     #[tokio::test]
     #[ignore = "Single Threaded test"]
     async fn socket_cleans_up_after_itself() {
-        assert_ok!(SocketHandler::new("polychat"));
+        assert_ok!(IPCServer::new("polychat"));
     }
 }
