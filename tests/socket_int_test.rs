@@ -6,7 +6,7 @@ mod test {
     use claims::assert_ok;
 
     use polychat_ipc::{
-        process_management::ipc_server::IPCServer,
+        plugin_management::ipc_server::IPCServer,
         polychat_plugin_sdk_rust::client::IPCClient,
         api::schema::{
             instructions::{

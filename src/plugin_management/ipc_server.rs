@@ -189,7 +189,7 @@ impl Drop for IPCServer {
 
 #[cfg(test)]
 mod test{
-    use crate::process_management::ipc_server::IPCServer;
+    use crate::plugin_management::ipc_server::IPCServer;
     use claims::assert_ok;
 
     #[tokio::test]

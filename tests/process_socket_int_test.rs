@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod test {
-    use polychat_ipc::{process_management::ipc_server::IPCServer, polychat_plugin_sdk_rust::client::IPCClient, api::schema::instructions::{SerializableCoreInstr, SerializablePluginInstr}};
+    use polychat_ipc::{plugin_management::ipc_server::IPCServer, polychat_plugin_sdk_rust::client::IPCClient, api::schema::instructions::{SerializableCoreInstr, SerializablePluginInstr}};
     use claims::{assert_ok, assert_some};
     use polychat_ipc::{
         api::schema::instructions::{CoreInstructionType, PluginInstructionType},
-        process_management::process::Process
+        plugin_management::process::Process
     };
     use rstest::*;
     use serde_json::value::RawValue;

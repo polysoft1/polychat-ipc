@@ -4,12 +4,12 @@ use std::{path::PathBuf, env};
 
 use anyhow::Result;
 
-use crate::process_management::process_manager::ProcessManager;
+use crate::plugin_management::plugin_manager::PluginManager;
 
 use self::ui_interface::ui_trait::GUI;
 
 pub struct Core {
-    proc_manager: ProcessManager
+    proc_manager: PluginManager
 }
 
 /**
@@ -60,7 +60,7 @@ impl Core {
      */
     pub fn new_from_dir(mut dir: PathBuf) -> Result<Core> {
         dir.push("plugins");
-        let man = ProcessManager::from_dir_path(dir)?;
+        let man = PluginManager::from_dir_path(dir)?;
 
         Ok(Core {
             proc_manager: man

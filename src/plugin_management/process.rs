@@ -1,5 +1,5 @@
 use crate::{
-    process_management::ipc_server::IPCServer,
+    plugin_management::ipc_server::IPCServer,
     api::schema::instructions::{DeserializableCoreInstr, SerializablePluginInstr}
 };
 
@@ -147,7 +147,7 @@ async fn fetch_message_loop(socket: Arc<Mutex<IPCServer>>, tx: Sender<Deserializ
 
 #[cfg(test)]
 mod test {
-    use crate::process_management::{process::Process, ipc_server::IPCServer};
+    use crate::plugin_management::{process::Process, ipc_server::IPCServer};
     use claims::assert_ok;
     use test_log::test;
     use tokio::sync::mpsc;

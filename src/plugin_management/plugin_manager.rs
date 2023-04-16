@@ -12,9 +12,9 @@ use rand::{
     thread_rng, Rng
 };
 
-use crate::{process_management::{
+use crate::{plugin_management::{
     process::Process,
-    error::ProcessManagerError,
+    error::PluginManagerError,
     ipc_server::IPCServer,
 }, core::{ui_interface::{ui_trait::GUI, load_status::LoadStatus}}, api::schema::instructions::DeserializableCoreInstr};
 
@@ -24,23 +24,23 @@ const EXEC_EXTENSION: &str = "exe";
 const EXEC_EXTENSION: &str = "";
 
 #[derive(Debug)]
-pub struct ProcessManager {
+pub struct PluginManager {
     dir: Option<PathBuf>,
     loaded_processes: Vec<Process>,
     shared_queue_rx: Receiver<DeserializableCoreInstr>,
     shared_queue_tx: Sender<DeserializableCoreInstr>,
 }
 
-impl ProcessManager {
+impl PluginManager {
     /**
-     * Creates a new ProcessManager.
+     * Creates a new PluginManager.
      * Does not attempt to load any processes from executables.
      * 
      * You can still load executables afterwards with load_executable.
      */
-    pub fn new() -> ProcessManager {
+    pub fn new() -> PluginManager {
         let (tx, rx) = mpsc::channel(100);
-        ProcessManager {
+        PluginManager {
             dir: None,
             loaded_processes: vec![],
             shared_queue_rx: rx,
@@ -49,34 +49,34 @@ impl ProcessManager {
     }
 
     /**
-     * Creates a new ProcessManager with a string slice
+     * Creates a new PluginManager with a string slice
      * 
      * # Required Arguments
      * ## path
      * The absolute path to a directory containing a set of directories which contain executables
      *
      * # Returns
-     * A ProcessManager on success
+     * A PluginManager on success
      * 
      * A string slice describing the error on failure (check logs for more details)
      */
-    pub fn from_dir_str(path: &str) -> Result<ProcessManager> {
-        ProcessManager::from_dir_path(PathBuf::from_str(path)?)
+    pub fn from_dir_str(path: &str) -> Result<PluginManager> {
+        PluginManager::from_dir_path(PathBuf::from_str(path)?)
     }
 
     /**
-     * Creates a new ProcessManager from a Path
+     * Creates a new PluginManager from a Path
      * 
      * # Required Arguments
      * ## dir
      * The absolute path to a directory containing a set of directories which contain executables
      * 
      * # Returns
-     * A ProcessManager on success
+     * A PluginManager on success
      * 
      * A string slice describing the error on failure (check logs for more details)
      */
-    pub fn from_dir_path(dir: PathBuf) -> Result<ProcessManager> {
+    pub fn from_dir_path(dir: PathBuf) -> Result<PluginManager> {
         // Validate
         check_directory(dir.clone())?;
         // Create manager
@@ -93,12 +93,12 @@ impl ProcessManager {
      * If the dir is set, it ensures that it contains the necessary folder.
      * Will also initialize parent directories if necessary.
      * 
-     * Returns ProcessManagerError::NoPath error if no path is set.
+     * Returns PluginManagerError::NoPath error if no path is set.
      */
     pub fn prepare_dir(&self) -> Result<()> {
         match self.dir.clone() {
             None => {
-                let err = ProcessManagerError::NoPath;
+                let err = PluginManagerError::NoPath;
                 error!("{}", err);
                 Err(anyhow::Error::new(err))
             },
@@ -112,7 +112,7 @@ impl ProcessManager {
      * Loads the processes in the previously set directory.
      * Calls the GUI for each plugin loaded and for each failure.
      * 
-     * If no dir is set, returns ProcessManagerError::NoPath Result
+     * If no dir is set, returns PluginManagerError::NoPath Result
      * 
      * # Platform Dependent Behavior
      * - Windows: Expects `.exe` to be the extension of the executables
@@ -131,7 +131,7 @@ impl ProcessManager {
         let dir: PathBuf;
         match self.dir.clone() {
             None => {
-                let err = ProcessManagerError::NoPath;
+                let err = PluginManagerError::NoPath;
                 error!("{}", err);
                 return Err(anyhow::Error::new(err));
             },
@@ -209,19 +209,19 @@ impl ProcessManager {
  * 
  * A string slice describing why it does not meet all criteria on failure
  */
-fn check_directory(dir: PathBuf) -> Result<(), ProcessManagerError> {
+fn check_directory(dir: PathBuf) -> Result<(), PluginManagerError> {
     if !dir.is_absolute() {
-        let err = ProcessManagerError::RelativePath(dir);
+        let err = PluginManagerError::RelativePath(dir);
         error!("{}", err);
         return Err(err);
     }
     if !dir.exists() {
-        let err = ProcessManagerError::NonExistent(dir); 
+        let err = PluginManagerError::NonExistent(dir); 
         error!("{}", err);
         return Err(err);
     }
     if !dir.is_dir() {
-        let err = ProcessManagerError::NonDirectory(dir);
+        let err = PluginManagerError::NonDirectory(dir);
         error!("{}", err);
         return Err(err);
     }
@@ -254,18 +254,18 @@ fn generate_random_ipc_id() -> String {
 
 #[cfg(test)]
 mod test{
-    use crate::process_management::process_manager::ProcessManager;
+    use crate::plugin_management::plugin_manager::PluginManager;
 
     // The Ok tests will be done in the integration tests with a plugin binary.
     use claims::assert_err;
 
     #[test]
     fn test_loading_from_relative_path() {
-        assert_err!(ProcessManager::from_dir_str("./plugins"));
+        assert_err!(PluginManager::from_dir_str("./plugins"));
     }
 
     #[test]
     fn test_loading_from_file() {
-        assert_err!(ProcessManager::from_dir_str("/etc/passwd"));
+        assert_err!(PluginManager::from_dir_str("/etc/passwd"));
     }
 }

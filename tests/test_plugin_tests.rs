@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod test {
-    use polychat_ipc::{api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}, process_management::{process_manager::ProcessManager, ipc_server::IPCServer}};
+    use polychat_ipc::{api::schema::{instructions::CoreInstructionType, protocol::InitDataInstruction}, plugin_management::{plugin_manager::PluginManager, ipc_server::IPCServer}};
     use rstest::*;
     use claims::assert_ok;
     use std::process::Command;
@@ -27,7 +27,7 @@ mod test {
         let mut handler = create_ipc_server(socket_name.clone());
         
         // Start the plugin
-        // Does not use ProcessManager in order to isolate this test to the plugin itself.
+        // Does not use PluginManager in order to isolate this test to the plugin itself.
         debug!("Starting plugin");
         let mut cmd = Command::cargo_bin("test-plugin").unwrap();
         cmd.arg(socket_name.clone());
@@ -50,7 +50,7 @@ mod test {
     }
 
     /**
-     * This function builds a valid plugin dir, then runs the process manager with it.
+     * This function builds a valid plugin dir, then runs the plugin manager with it.
      *
      * Therefore, this tests the ability to traverse the plugin dir, the ability to load
      * plugins, and the ability for those plugins to connect to their IPC sockets/pipes.
@@ -59,7 +59,7 @@ mod test {
     #[case(1)]
     #[case(3)]
     #[test_log::test(tokio::test)]
-    async fn integration_test_process_manager_load_dir(#[case] plugin_count: i32) {
+    async fn integration_test_plugin_manager_load_dir(#[case] plugin_count: i32) {
         let test_plugin_binary = assert_cmd::cargo::cargo_bin("test-plugin");
 
         let plugins_dir: PathBuf = testdir!(); // This will create the folder, so no need to try.
@@ -74,7 +74,7 @@ mod test {
             assert_ok!(std::fs::copy(&test_plugin_binary, &exe_in_plugin_dir));
         }
         debug!("Created test plugin dir. Testing loading from the path.");
-        assert_ok!(ProcessManager::from_dir_path(plugins_dir));
+        assert_ok!(PluginManager::from_dir_path(plugins_dir));
     }
 
     /**
@@ -83,12 +83,12 @@ mod test {
      */
     #[rstest]
     #[test_log::test(tokio::test)]
-    async fn integration_test_process_manager_load_file() {
+    async fn integration_test_plugin_manager_load_file() {
         let test_plugin_binary = assert_cmd::cargo::cargo_bin("test-plugin");
 
         // Just load the single plugin directly.
-        let mut process_manager = ProcessManager::new();
-        assert_ok!(process_manager.load_process(&test_plugin_binary));
+        let mut plugin_manager = PluginManager::new();
+        assert_ok!(plugin_manager.load_process(&test_plugin_binary));
     }
 
 }
